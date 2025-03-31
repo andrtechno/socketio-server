@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { getRedisClient } from './redis_con.js';
+import logger from "./logger.js";
 
 const ACCESS_TOKEN_SECRET = 'your_access_token_secret';
 const REFRESH_TOKEN_SECRET = 'your_refresh_token_secret';
@@ -78,6 +79,10 @@ export async function refreshAccessToken(refreshToken) {
 
 export async function registerUser(username, password) {
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    const redisClient = await getRedisClient();
+    await redisClient.set(`auth:${username}`,`${hashedPassword}`);
+
     // Сохраните username и hashedPassword в вашей базе данных (или Redis)
     // ...
     return { username, password: hashedPassword };
@@ -86,7 +91,10 @@ export async function registerUser(username, password) {
 export async function loginUser(username, password) {
     // Получите пользователя из вашей базы данных (или Redis) по username
     // ...
-    const user = { username, password : "$2b$10$L0Q7j3s1B2.Hlq5y97k7a.1103s72X7zX9Y9c7Q3V0c7.tFpUa" }; // временно
+    const redisClient = await getRedisClient();
+    const getPassword = await redisClient.get(`auth:${username}`);
+
+    const user = { username, password : getPassword }; // временно
 
     if (!user) {
         return null;
@@ -99,4 +107,16 @@ export async function loginUser(username, password) {
     }
 
     return user;
+}
+
+
+export async function getAuthValue(username) {
+    try {
+        const redisClient = await getRedisClient();
+        const value = await redisClient.get(`auth:${username}`);
+        return value;
+    } catch (error) {
+        logger.error('Ошибка при получении значения из Redis:', error);
+        return null; // Или обработайте ошибку по-другому
+    }
 }

@@ -37,3 +37,4 @@ export async function invalidateToken(token) {
     const redisClient = await getRedisClient(); // Получаем клиент Redis
     await redisClient.del(`token:${token}`);
 }
+

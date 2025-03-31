@@ -7,13 +7,22 @@ import fs from 'fs';
 import logger from './logger.js';
 import {billingNamespace} from "./chats/billing.js";
 import {createAdapter} from '@socket.io/redis-adapter';
-import {redisConf} from "./redis_con.js";
-import {authMiddleware} from "./auth.js";
-
-
+import {getRedisClient, redisConf} from "./redis_con.js";
+//import {authMiddleware} from "./auth.js";
+import {
+    authMiddleware,
+    generateAccessToken,
+    generateRefreshToken, getAuthValue,
+    loginUser,
+    refreshAccessToken,
+    registerUser
+} from "./auth3.js";
+import {body, validationResult} from 'express-validator';
+import {validateUserAuth} from "./validators/UserAuth.js";
 
 dotenv.config(); // Load environment variables from .env file
 const PORT = process.env.WS_PORT || 3000;
+
 
 // const logFile = fs.createWriteStream('log.txt', { flags: 'a' });
 // const logStdout = process.stdout;
@@ -38,6 +47,7 @@ const io = new Server(server, {
     }
 });
 
+
 // HTTP API для отправки сообщений в WebSocket
 app.use(express.json());
 
@@ -57,6 +67,8 @@ async function setupRedisAdapter() {
 
 
 Promise.resolve().then(setupRedisAdapter).then(() => {
+
+
     //Middleware
     io.use(authMiddleware);
 
@@ -95,6 +107,63 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
     });
 
+
+    app.post("/register", validateUserAuth, async (req, res) => {
+
+        // try {
+        //     console.log(req.body);
+        //     JSON.parse(JSON.parse(req.body));
+        // } catch (e) {
+        //     logger.error(`Error json ${e.message}`);
+        //     res.status(500).json({error: true, message: e.message});
+        // }
+
+        const errors = validationResult(req);
+        const {username, password} = req.body;
+
+
+        // Если канал и сообщение указаны, отправляем сообщение в канал
+        if (!errors.isEmpty()) {
+            return res.status(400).json({errors: errors.array()});
+        }
+
+
+        //Здесь делаем проверку с БД менеджера.
+
+
+        const redisClient = await getRedisClient();
+        const user = await redisClient.get(`auth:${username}`);
+        if (user) {
+            console.log(user);
+            if (user !== password) {
+                //Если пользователь найден и пароль НЕ совпадает
+                return res.status(401).json({
+                    error: true,
+                    message: "Не верный пароль",
+                });
+            } else {
+                //Если пользователь найден и пароль совпадают, не чего не делаем
+                return res.status(202).json({
+                    success: true,
+                });
+            }
+        } else {
+
+        }
+
+
+        //Регистрация пользователя в Redis.
+        redisClient.set(`auth:${username}`, password);
+
+        res.status(200).json({
+            success: true,
+            message: "✅ Пользователь успешно зарегистрирован",
+            username: username,
+            password: password
+        });
+    });
+
+
     server.on('error', (e) => {
         if (e.code === 'EADDRINUSE') {
             logger.error('Address in use, retrying...');
@@ -108,13 +177,35 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     });
 
     server.listen(PORT, () => {
-        logger.info(`Socket.io сервер запущен на порту ${PORT}`,'ffff');
+        logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'ffff');
     });
 
 });
 
 
-
+// Пример регистрации и логина (для тестирования)
+//     registerUser('test_user', 'password123').then((user) => {
+//         loginUser('test_user', 'password123').then((user) => {
+//             if (user) {
+//                 generateAccessToken({ userId: 123, username: user.username }).then((accessToken) => {
+//                     generateRefreshToken({ userId: 123, username: user.username }).then((refreshToken) => {
+//                         console.log('Access Token:', accessToken);
+//                         console.log('Refresh Token:', refreshToken);
+//
+//                         refreshAccessToken(refreshToken).then((newAccessToken) => {
+//                             if (newAccessToken) {
+//                                 console.log('Новый Access Token:', newAccessToken);
+//                             } else {
+//                                 console.log('Refresh token недействителен');
+//                             }
+//                         });
+//                     });
+//                 });
+//             } else {
+//                 console.log('Неверный логин или пароль');
+//             }
+//         });
+//     });
 
 
 
