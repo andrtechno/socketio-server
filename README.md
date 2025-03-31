@@ -37,3 +37,16 @@ $response = $httpClient->post('billing/send_message')
 return ($response->isOk) ? true : false;
 
 ```
+
+
+```php
+$key = JWT_SECRET; //env
+$payload = [
+    'iss' => 'http://example.org',
+    'aud' => 'http://example.com',
+    'iat' => 1356999524,
+    'nbf' => 1357000000
+];
+
+$jwt = JWT::encode($payload, $key, 'HS256');
+```

@@ -1,13 +1,16 @@
 import logger from "../logger.js";
 import {getRedisClient} from "./../redis_con.js";
+import {authMiddleware} from "../auth.js";
 
 export async function billingNamespace(io) {
     const billingNamespace = io.of("/billing");
     const redisClient = await getRedisClient(); // Получаем клиент Redis
 
+    billingNamespace.use(authMiddleware);
+
     billingNamespace.on("connection", (socket) => {
         logger.info(`🔗 Клиент подключился к /billing: ${socket.id}`);
-
+        console.log(socket.decoded.userId);
 
         socket.on("subscribe", (data) => {
             logger.info(`📩 Клиент подписался на: ${JSON.stringify(data)}`);

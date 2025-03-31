@@ -8,17 +8,13 @@ import logger from './logger.js';
 import {billingNamespace} from "./chats/billing.js";
 import {createAdapter} from '@socket.io/redis-adapter';
 import {getRedisClient, redisConf} from "./redis_con.js";
-//import {authMiddleware} from "./auth.js";
 import {
     authMiddleware,
-    generateAccessToken,
-    generateRefreshToken, getAuthValue,
-    loginUser,
-    refreshAccessToken,
-    registerUser
-} from "./auth3.js";
+} from "./auth.js";
 import {body, validationResult} from 'express-validator';
 import {validateUserAuth} from "./validators/UserAuth.js";
+import {exampleUsage, getUserByToken, poolExample} from "./database.js";
+import jwt from "jsonwebtoken";
 
 dotenv.config(); // Load environment variables from .env file
 const PORT = process.env.WS_PORT || 3000;
@@ -65,16 +61,40 @@ async function setupRedisAdapter() {
     }
 }
 
+async function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (token == null) return res.sendStatus(401); // No token
+
+    console.log(token);
+
+
+    const redisClient = await getRedisClient();
+   // const pwd = await redisClient.get(`auth:${username}`);
+
+
+    redisClient.set(`auth:${username}`, token);
+      //  req.user = user; // Add user data to the request object
+        next(); // Proceed to the next middleware or route handler
+    // jwt.verify(token, secretKey, (err, user) => {
+    //     if (err) return res.sendStatus(403); // Invalid token
+
+    // });
+}
 
 Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
     //Middleware
-    io.use(authMiddleware);
+    //io.use(authMiddleware);
+
+
 
 //transactionNamespace(io);
     billingNamespace(io).then(r => {
-        app.post("/send", (req, res) => {
+
+        app.post("/send", authenticateToken, (req, res) => {
             const {channel, message} = req.body;
 
             // Если канал и сообщение указаны, отправляем сообщение в канал
@@ -90,7 +110,7 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
                             logger.info("Подтвердил получение сообщения:", responses);
                         } else {
                             logger.info("Не отправил подтверждение! записываем в Redis");
-                            redisClient.rPush(`channel:${channel}:messages`, JSON.stringify(message));
+                            //redisClient.rPush(`channel:${channel}:messages`, JSON.stringify(message));
                         }
                     }
                 });
@@ -132,10 +152,10 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
         const redisClient = await getRedisClient();
-        const user = await redisClient.get(`auth:${username}`);
-        if (user) {
-            console.log(user);
-            if (user !== password) {
+        const pwd = await redisClient.get(`auth:${username}`);
+        if (pwd) {
+            console.log(pwd);
+            if (pwd !== password) {
                 //Если пользователь найден и пароль НЕ совпадает
                 return res.status(401).json({
                     error: true,

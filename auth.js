@@ -2,23 +2,31 @@ import { isValidToken } from './utils.js';
 
 import jwt from 'jsonwebtoken';
 import {getRedisClient} from "./redis_con.js";
+
+
+function verifyToken(token) {
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        return decoded; // Возвращает расшифрованный токен, если он валиден
+    } catch (error) {
+        return null; // Возвращает null, если токен невалиден
+    }
+}
+
 export async function authMiddleware(socket, next) {
     const token = socket.handshake.auth.token;
-
+    console.log(socket.handshake);
     if (!token) {
         return next(new Error('Нет токена'));
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const redisClient = await getRedisClient(); // Получаем клиент Redis
-        const isValid = await redisClient.get(`token:${token}`);
-
-        if (!isValid) {
-            return next(new Error('Неверный токен или токен истек'));
+        const decoded = verifyToken(token);
+        console.log('Decoded token:', decoded); // Добавляем логирование
+        if (!decoded) {
+            return next(new Error('invalid token'));
         }
-
-        socket.user = decoded; // Добавляем данные пользователя в объект socket
+        socket.decoded = decoded; // Сохраняем расшифрованный токен в сокете
         next();
     } catch (err) {
         return next(new Error('Неверный токен'));

@@ -16,5 +16,5 @@ export const validateUserAuth = [
 
     body("password")
         .isLength({ min: 6 }).withMessage("Пароль должен быть минимум 6 символов")
-        .matches(/\d/).withMessage("Пароль должен содержать хотя бы одну цифру"),
+        //.matches(/\d/).withMessage("Пароль должен содержать хотя бы одну цифру"),
 ];
