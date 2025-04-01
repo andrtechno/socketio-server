@@ -33,8 +33,8 @@ const PORT = process.env.WS_PORT || 3000;
 
 const app = express();
 const options = {
-    key: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\key.pem"),  // Для теста: самоподписанный ключ
-    cert: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\cert.pem"), // Для теста: самоподписанный сертификат
+    //key: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\key.pem"),  // Для теста: самоподписанный ключ
+    //cert: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\cert.pem"), // Для теста: самоподписанный сертификат
     // pingTimeout: 60000, // Увеличить таймаут пинга
     // pingInterval: 25000,
 };
