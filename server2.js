@@ -15,6 +15,9 @@ import {body, validationResult} from 'express-validator';
 import {validateUserAuth} from "./validators/UserAuth.js";
 import {exampleUsage, getUserByToken, poolExample} from "./database.js";
 import jwt from "jsonwebtoken";
+import { instrument } from '@socket.io/admin-ui';
+import path from "path";
+import { fileURLToPath } from 'url';
 
 dotenv.config(); // Load environment variables from .env file
 const PORT = process.env.WS_PORT || 3000;
@@ -38,15 +41,29 @@ const options = {
 const server = http.createServer(options, app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        //origin: "*",
+        origin: ["http://socket.loc:3000"],
+        methods: ["GET", "POST"],
+        credentials:true
     }
 });
+
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 // HTTP API для отправки сообщений в WebSocket
 app.use(express.json());
 
+// app.get('/admin', (req, res, next) => {
+//     res.send(express.static('./node_modules/@socket.io/admin-ui/ui/dist'))
+// })
+
+app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.io/admin-ui', 'ui', 'dist')));
+
+// app.use(express.static('./node_modules/@socket.io/admin-ui/ui/dist'));
 let pubClient, subClient;
 
 async function setupRedisAdapter() {
@@ -74,7 +91,7 @@ async function authenticateToken(req, res, next) {
    // const pwd = await redisClient.get(`auth:${username}`);
 
 
-    redisClient.set(`auth:${username}`, token);
+   // redisClient.set(`auth:${username}`, token);
       //  req.user = user; // Add user data to the request object
         next(); // Proceed to the next middleware or route handler
     // jwt.verify(token, secretKey, (err, user) => {
@@ -89,6 +106,13 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     //Middleware
     //io.use(authMiddleware);
 
+// Интеграция Socket.IO Admin
+
+    instrument(io, {
+        auth: false,
+        mode:"development"
+        //namespaceName: "/admin"
+    });
 
 
 //transactionNamespace(io);
@@ -173,13 +197,13 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
         //Регистрация пользователя в Redis.
-        redisClient.set(`auth:${username}`, password);
+        //redisClient.set(`auth:${username}`, password);
 
         res.status(200).json({
             success: true,
             message: "✅ Пользователь успешно зарегистрирован",
-            username: username,
-            password: password
+          //  username: username,
+           // password: password
         });
     });
 

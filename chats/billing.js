@@ -6,18 +6,44 @@ export async function billingNamespace(io) {
     const billingNamespace = io.of("/billing");
     const redisClient = await getRedisClient(); // Получаем клиент Redis
 
+
+
+
     billingNamespace.use(authMiddleware);
 
     billingNamespace.on("connection", (socket) => {
-        logger.info(`🔗 Клиент подключился к /billing: ${socket.id}`);
-        console.log(socket.decoded.userId);
+        logger.info(`🔗 Клиент подключился к /billing: ${socket.decoded.userId}`);
 
         socket.on("subscribe", (data) => {
             logger.info(`📩 Клиент подписался на: ${JSON.stringify(data)}`);
 
             if (data.channel) {
                 socket.join(data.channel);
-                redisClient.set(`subscribe:${socket.id}`, data.channel);
+
+
+
+
+                (async () => {
+                    try {
+                        const exists = await redisClient.exists('subscribe:503');
+                        if (exists === 1) {
+                            const subscribeSata = await redisClient.hGetAll(`subscribe:${socket.decoded.userId}`);
+                            console.log('subscribe exists:', subscribeSata.userId);
+                        } else {
+                            console.log('subscribe.');
+                            redisClient.hSet(`subscribe:${socket.decoded.userId}`, socket.decoded);
+                        }
+                    } catch (error) {
+                        console.error('Error checking key existence:', error);
+                    }
+                })();
+
+
+                      //  redisClient.hSet(`subscribe:${socket.decoded.userId}`, socket.decoded);
+
+
+
+
                 logger.info(`✅ Подписан на канал: ${data.channel}`);
             } else {
                 logger.info("❌ Ошибка: Не передан канал в subscribe");

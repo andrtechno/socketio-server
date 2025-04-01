@@ -1,5 +1,3 @@
-import { isValidToken } from './utils.js';
-
 import jwt from 'jsonwebtoken';
 import {getRedisClient} from "./redis_con.js";
 
@@ -15,18 +13,20 @@ function verifyToken(token) {
 
 export async function authMiddleware(socket, next) {
     const token = socket.handshake.auth.token;
-    console.log(socket.handshake);
+
     if (!token) {
         return next(new Error('Нет токена'));
     }
 
     try {
         const decoded = verifyToken(token);
-        console.log('Decoded token:', decoded); // Добавляем логирование
         if (!decoded) {
             return next(new Error('invalid token'));
         }
         socket.decoded = decoded; // Сохраняем расшифрованный токен в сокете
+
+
+
         next();
     } catch (err) {
         return next(new Error('Неверный токен'));

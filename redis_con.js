@@ -25,6 +25,7 @@ async function connectRedis() {
 
 export async function getRedisClient() {
     if (!redisClient) {
+        logger.error('Redis connect error');
         return connectRedis();
     }
     return redisClient;
