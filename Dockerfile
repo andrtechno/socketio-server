@@ -18,6 +18,8 @@ RUN npm install
 
 # Copy the rest of the application code to the working directory
 COPY . .
+COPY .env.example .env
+
 
 # Expose the port your Socket.IO server listens on
 EXPOSE 3000
