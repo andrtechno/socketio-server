@@ -1,8 +1,14 @@
 # Use an official Node.js runtime as a parent image
-FROM node:18-alpine
+FROM ubuntu:latest
+
+RUN apt update && apt install -y curl git
 
 # Set the working directory in the container
 WORKDIR /socket
+
+# Устанавливаем Node.js (LTS)
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt install -y nodejs
 
 # Copy package.json and package-lock.json to the working directory
 COPY package*.json ./
