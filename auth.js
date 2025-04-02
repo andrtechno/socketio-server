@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const {getRedisClient} = require("./redis_con.js");
+const {getRedisClient} = require("./redis.js");
 const Joi = require('joi');
 const logger = require("./logger.js");
 

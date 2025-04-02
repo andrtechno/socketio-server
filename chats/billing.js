@@ -1,5 +1,5 @@
 const logger = require("../logger.js");
-const {getRedisClient} = require("./../redis_con.js");
+const {getRedisClient} = require("./../redis.js");
 const {authMiddleware} = require("../auth.js");
 
 async function billingNamespace(io) {
