@@ -3,7 +3,7 @@ const util = require('util');
 
 const logger = winston.createLogger({
     level: 'info',
-    defaultMeta: { service: 'user-service' },
+    defaultMeta: { service: 'socket' },
     format: winston.format.combine(
         winston.format.timestamp({
             format: 'YYYY-MM-DD HH:mm:ss',

@@ -11,8 +11,6 @@ const {getRedisClient, redisConf} = require("./redis_con.js");
 const {
     authMiddleware,
 } = require("./auth.js");
-const {body, validationResult} = require('express-validator');
-const {validateUserAuth} = require("./validators/UserAuth.js");
 const jwt = require("jsonwebtoken");
 const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
@@ -347,31 +345,6 @@ process.on('uncaughtException', (err) => {
     logger.error('Необработанное исключение:', err);
     shutdown();
 });
-
-
-// Пример регистрации и логина (для тестирования)
-//     registerUser('test_user', 'password123').then((user) => {
-//         loginUser('test_user', 'password123').then((user) => {
-//             if (user) {
-//                 generateAccessToken({ id: 123, username: user.username }).then((accessToken) => {
-//                     generateRefreshToken({ id: 123, username: user.username }).then((refreshToken) => {
-//                         console.log('Access Token:', accessToken);
-//                         console.log('Refresh Token:', refreshToken);
-//
-//                         refreshAccessToken(refreshToken).then((newAccessToken) => {
-//                             if (newAccessToken) {
-//                                 console.log('Новый Access Token:', newAccessToken);
-//                             } else {
-//                                 console.log('Refresh token недействителен');
-//                             }
-//                         });
-//                     });
-//                 });
-//             } else {
-//                 console.log('Неверный логин или пароль');
-//             }
-//         });
-//     });
 
 
 

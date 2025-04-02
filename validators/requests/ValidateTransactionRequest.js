@@ -28,7 +28,6 @@ const transactionSchema  = Joi.object({
     })
 });
 
-
 const ValidateTransactionRequest = (data) => {
     return transactionSchema.validate(data, { abortEarly: false });
 };
