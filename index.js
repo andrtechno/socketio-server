@@ -18,7 +18,6 @@ const validateBillingBody = require("./validators/requests/ValidateBillingBody")
 const ValidateTransactionRequest = require("./validators/requests/ValidateTransactionRequest");
 
 
-
 const PORT = process.env.WS_PORT || 3000;
 
 
@@ -34,8 +33,8 @@ const app = express();
 const options = {
     //key: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\key.pem"),  // Для теста: самоподписанный ключ
     //cert: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\cert.pem"), // Для теста: самоподписанный сертификат
-    // pingTimeout: 60000, // Увеличить таймаут пинга
-    // pingInterval: 25000,
+     pingTimeout: 10000, // Увеличить таймаут пинга
+     pingInterval: 5000,
 };
 const server = http.createServer(options, app);
 const io = new Server(server, {
@@ -123,7 +122,7 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
     //Common Middleware
-    //io.use(authMiddleware);
+    io.use(authMiddleware);
 
     // Интеграция Socket.IO Admin
     instrument(io, {
@@ -135,39 +134,90 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     //     logger.info(`🔗 Клиент подключился к / ${socket.id} / ${socket.decoded.id}`);
     // });
 
-    transactionNamespace(io).then(r => {
 
-        app.post("/:channel/send", authenticateToken, (req, res) => {
-
-            const channel = req.params.channel; // Получаем параметр из URL
-
-            const {message,namespace} = req.body;
+    io.on("connection", (socket) => {
+        logger.info(`🔗 Клиент подключился к: ${socket.id} / ${socket.decoded.id}`);
 
 
-            // Если канал и сообщение указаны, отправляем сообщение в канал
-            if (channel && message) {
-                io.of(`/${namespace}`).to(channel).timeout(5000).emit("transaction", message, (err, responses) => {
-                    if (err) {
-                        logger.info('the client did not acknowledge the event in the given delay');
-                    } else {
-                        if (responses[0] && responses[0].status === "accepted") {
-                            logger.info("Подтвердил получение сообщения:", responses);
-                        } else {
-                            logger.info("Не отправил подтверждение! записываем в Redis");
-                        }
-                    }
-                });
+        socket.on("subscribe", (data) => {
+            logger.info(`📩 Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
 
-
-                logger.info(`Sent to channel ${channel}:`, message);
-                res.status(200).json({success: true});
+            if (data.channel) {
+                socket.join(data.channel);
+                logger.info(`✅ ${socket.id} Подписан на канал: ${data.channel}`);
             } else {
-                res.status(400).json({success: false});
+                logger.info(`❌ ${socket.id} Ошибка: Не передан канал в subscribe`);
             }
+
         });
 
+
+        socket.on('disconnect', () => {
+            logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
+        });
+
+        socket.on("ping", () => {
+            console.log("Получен ping от клиента");
+            socket.emit("pong"); // Отправляем 'pong' обратно
+        });
     });
-    // billingNamespace(io).then(r => {
+
+
+    function handleResponse(err, responses) {
+        if (err) {
+            logger.info('Клиент не подтвердил получение события в течение 5 секунд.');
+        } else {
+            if (responses?.[0]?.status === "accepted") {
+                logger.info("Подтвердил получение сообщения:", responses);
+            } else {
+                logger.info("Не отправил подтверждение! Записываем в Redis.");
+            }
+        }
+    }
+
+
+    function sendMessage(io, { channel = null, eventName, message }) {
+        const emitter = channel ? io.to(channel) : io; // Если есть канал → отправляем в него, иначе всем
+
+        emitter.timeout(5000).emit(eventName, message, handleResponse);
+    }
+
+
+    app.post("/send", authenticateToken, (req, res) => {
+
+        const {channel, message,eventName} = req.body;
+
+        // Если канал и сообщение указаны, отправляем сообщение в канал
+        if (channel && message) {
+
+            let channelName =null;
+            if (channel === 'billing') {
+                channelName=channel;
+            } else if (channel === 'transaction') {
+                channelName=channel;
+            }
+            // io.timeout(5000);
+            // io.emit(eventName, message, handleResponse);
+
+
+            sendMessage(io, {
+                channel: channelName,
+                eventName: eventName,
+                message: message
+            });
+
+          //  io.to(channel).timeout(5000).emit(eventName, message, handleResponse);
+
+
+            logger.info(`Sent to channel ${channel}:`, message);
+            res.status(200).json({success: true});
+        } else {
+            res.status(400).json({success: false});
+        }
+    });
+
+
+    // transactionNamespace(io).then(r => {
     //
     //     app.post("/:channel/send", authenticateToken, (req, res) => {
     //
@@ -178,7 +228,39 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     //
     //         // Если канал и сообщение указаны, отправляем сообщение в канал
     //         if (channel && message) {
-    //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("test", {text: 'lalal'});
+    //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("transaction", message, (err, responses) => {
+    //                 if (err) {
+    //                     logger.info('the client did not acknowledge the event in the given delay');
+    //                 } else {
+    //                     if (responses[0] && responses[0].status === "accepted") {
+    //                         logger.info("Подтвердил получение сообщения:", responses);
+    //                     } else {
+    //                         logger.info("Не отправил подтверждение! записываем в Redis");
+    //                     }
+    //                 }
+    //             });
+    //
+    //
+    //             logger.info(`Sent to channel ${channel}:`, message);
+    //             res.status(200).json({success: true});
+    //         } else {
+    //             res.status(400).json({success: false});
+    //         }
+    //     });
+    //
+    // });
+    // billingNamespace(io).then(r => {
+    //
+    //     app.post("/billing/send", authenticateToken, (req, res) => {
+    //
+    //         const channel = 'billing'; // Получаем параметр из URL
+    //
+    //         const {message,namespace} = req.body;
+    //
+    //
+    //         // Если канал и сообщение указаны, отправляем сообщение в канал
+    //         if (channel && message) {
+    //             io.to(channel).timeout(5000).emit("test", {text: 'lalal'});
     //
     //             // io.of("/billing").to(channel).emit("event", message);
     //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("event", message, (err, responses) => {

@@ -1,7 +1,7 @@
 // server/auth.js
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { getRedisClient } from './redis_con.js';
+import { getRedisClient } from './redis.js';
 import logger from "./logger.js";
 
 const ACCESS_TOKEN_SECRET = 'your_access_token_secret';

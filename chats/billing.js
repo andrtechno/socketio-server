@@ -16,20 +16,11 @@ async function billingNamespace(io) {
         getRedisClient().then((redis) => {
             redis.hSet(`connection:${socket.id}`, socket.decoded);
 
-
-
-
             socket.on("subscribe", (data) => {
                 logger.info(`📩 Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
 
                 if (data.channel) {
                     socket.join(data.channel);
-
-
-
-
-
-
 
 
                  //   redis.del(`offline:billing:${socket.decoded.id}`);
