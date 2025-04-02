@@ -5,6 +5,7 @@ const http = require('http');
 const {Server} = require('socket.io');
 const logger = require('./logger.js');
 const {billingNamespace} = require("./chats/billing.js");
+const {transactionNamespace} = require("./chats/transaction");
 const {createAdapter} = require('@socket.io/redis-adapter');
 const {getRedisClient, redisConf} = require("./redis_con.js");
 const {
@@ -16,7 +17,9 @@ const jwt = require("jsonwebtoken");
 const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
 const {scanKeys, deleteKeysByPattern} = require("./redis_con");
-const validateBillingBody = require("./validators/ValidateBillingBody");
+const validateBillingBody = require("./validators/requests/ValidateBillingBody");
+const ValidateTransactionRequest = require("./validators/requests/ValidateTransactionRequest");
+
 
 
 const PORT = process.env.WS_PORT || 3000;
@@ -83,6 +86,38 @@ async function authenticateToken(req, res, next) {
         req.decoded = user; // Add user data to the request object
     });
 
+
+    const {message} = req.body;
+    const channel = req.params.channel; // Получаем параметр из URL
+
+    if (channel === 'billing') {
+        const {error, value} = validateBillingBody(req.body);
+
+        if (error) {
+            logger.error("Ошибка валидации:");
+            return res.status(400).json({
+                success: false,
+                message: 'Ошибка валидации',
+                errors: error.details.map(err => err.message)
+            });
+        }
+    }
+
+
+    if (channel === 'transaction') {
+        const {error, value} = ValidateTransactionRequest(req.body);
+
+        if (error) {
+            logger.error("Ошибка валидации:");
+            return res.status(400).json({
+                success: false,
+                message: 'Ошибка валидации',
+                errors: error.details.map(err => err.message)
+            });
+        }
+    }
+
+    console.log('Proceed to the next middleware or route handler');
     next(); // Proceed to the next middleware or route handler
 
 }
@@ -103,82 +138,25 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     //     logger.info(`🔗 Клиент подключился к / ${socket.id} / ${socket.decoded.id}`);
     // });
 
-//transactionNamespace(io);
-    billingNamespace(io).then(r => {
+    transactionNamespace(io).then(r => {
 
-        app.post("/send", authenticateToken, (req, res) => {
-            const {channel, message} = req.body;
+        app.post("/:channel/send", authenticateToken, (req, res) => {
 
+            const channel = req.params.channel; // Получаем параметр из URL
 
-
-
-            const { error, value  } = validateBillingBody(req.body);
-
-             if (error) {
-                 console.log("Ошибки валидации:", error.details.map(err => err.message));
-                 logger.error("Ошибки валидации:");
-            return res.status(403).json({success: false,message:'Ошибки валидации',errors:error.details.map(err => err.message)});
-             } else {
-                 //ok
-                // console.log('ok');
-             }
-
-
-
-
+            const {message,namespace} = req.body;
 
 
             // Если канал и сообщение указаны, отправляем сообщение в канал
             if (channel && message) {
-                io.of("/billing").to(channel).timeout(5000).emit("test", {text:'lalal'});
-
-                // io.of("/billing").to(channel).emit("event", message);
-                io.of("/billing").to(channel).timeout(5000).emit("event", message, (err, responses) => {
+                io.of(`/${namespace}`).to(channel).timeout(5000).emit("transaction", message, (err, responses) => {
                     if (err) {
                         logger.info('the client did not acknowledge the event in the given delay');
                     } else {
                         if (responses[0] && responses[0].status === "accepted") {
                             logger.info("Подтвердил получение сообщения:", responses);
                         } else {
-
-
-
-
-
-                            getRedisClient().then((redis) => {
-                                 redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
-
-
-                                scanKeys('subscribe:billing:*')
-                                    .then(list => {
-
-
-
-
-
-                                        list.forEach((item) => {
-
-                                          //  const [first, channel, user_id] = item.split(':');
-                                        //    console.log(first,channel,user_id);
-
-
-                                            logger.info(item);
-                                           // redis.rPush(`messed:${item}`, JSON.stringify(message));
-                                        });
-
-                                    })
-                                    .catch(console.error);
-
-                                // const data = {
-                                //     channel: channel,
-                                //     message: JSON.stringify(message)
-                                // }
-                                // redis.hSet(`channel:${channel}:messages`, data);
-                            });
-
-
                             logger.info("Не отправил подтверждение! записываем в Redis");
-
                         }
                     }
                 });
@@ -192,62 +170,129 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
         });
 
     });
+    // billingNamespace(io).then(r => {
+    //
+    //     app.post("/:channel/send", authenticateToken, (req, res) => {
+    //
+    //         const channel = req.params.channel; // Получаем параметр из URL
+    //
+    //         const {message,namespace} = req.body;
+    //
+    //
+    //         // Если канал и сообщение указаны, отправляем сообщение в канал
+    //         if (channel && message) {
+    //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("test", {text: 'lalal'});
+    //
+    //             // io.of("/billing").to(channel).emit("event", message);
+    //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("event", message, (err, responses) => {
+    //                 if (err) {
+    //                     logger.info('the client did not acknowledge the event in the given delay');
+    //                 } else {
+    //                     if (responses[0] && responses[0].status === "accepted") {
+    //                         logger.info("Подтвердил получение сообщения:", responses);
+    //                     } else {
+    //
+    //
+    //                         getRedisClient().then((redis) => {
+    //                             redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
+    //
+    //
+    //                             scanKeys('subscribe:billing:*')
+    //                                 .then(list => {
+    //
+    //
+    //                                     list.forEach((item) => {
+    //
+    //                                         //  const [first, channel, user_id] = item.split(':');
+    //                                         //    console.log(first,channel,user_id);
+    //
+    //
+    //                                         logger.info(item);
+    //                                         // redis.rPush(`messed:${item}`, JSON.stringify(message));
+    //                                     });
+    //
+    //                                 })
+    //                                 .catch(console.error);
+    //
+    //                             // const data = {
+    //                             //     channel: channel,
+    //                             //     message: JSON.stringify(message)
+    //                             // }
+    //                             // redis.hSet(`channel:${channel}:messages`, data);
+    //                         });
+    //
+    //
+    //                         logger.info("Не отправил подтверждение! записываем в Redis");
+    //
+    //                     }
+    //                 }
+    //             });
+    //
+    //
+    //             logger.info(`Sent to channel ${channel}:`, message);
+    //             res.status(200).json({success: true});
+    //         } else {
+    //             res.status(400).json({success: false});
+    //         }
+    //     });
+    //
+    // });
 
 
-    app.post("/register", validateUserAuth, async (req, res) => {
-
-        // try {
-        //     console.log(req.body);
-        //     JSON.parse(JSON.parse(req.body));
-        // } catch (e) {
-        //     logger.error(`Error json ${e.message}`);
-        //     res.status(500).json({error: true, message: e.message});
-        // }
-
-        const errors = validationResult(req);
-        const {username, password} = req.body;
-
-
-        // Если канал и сообщение указаны, отправляем сообщение в канал
-        if (!errors.isEmpty()) {
-            return res.status(400).json({errors: errors.array()});
-        }
-
-
-        //Здесь делаем проверку с БД менеджера.
-
-
-        const redisClient = await getRedisClient();
-        const pwd = await redisClient.get(`auth:${username}`);
-        if (pwd) {
-            console.log(pwd);
-            if (pwd !== password) {
-                //Если пользователь найден и пароль НЕ совпадает
-                return res.status(401).json({
-                    error: true,
-                    message: "Не верный пароль",
-                });
-            } else {
-                //Если пользователь найден и пароль совпадают, не чего не делаем
-                return res.status(202).json({
-                    success: true,
-                });
-            }
-        } else {
-
-        }
-
-
-        //Регистрация пользователя в Redis.
-        //redisClient.set(`auth:${username}`, password);
-
-        res.status(200).json({
-            success: true,
-            message: "✅ Пользователь успешно зарегистрирован",
-            //  username: username,
-            // password: password
-        });
-    });
+    // app.post("/register", validateUserAuth, async (req, res) => {
+    //
+    //     // try {
+    //     //     console.log(req.body);
+    //     //     JSON.parse(JSON.parse(req.body));
+    //     // } catch (e) {
+    //     //     logger.error(`Error json ${e.message}`);
+    //     //     res.status(500).json({error: true, message: e.message});
+    //     // }
+    //
+    //     const errors = validationResult(req);
+    //     const {username, password} = req.body;
+    //
+    //
+    //     // Если канал и сообщение указаны, отправляем сообщение в канал
+    //     if (!errors.isEmpty()) {
+    //         return res.status(400).json({errors: errors.array()});
+    //     }
+    //
+    //
+    //     //Здесь делаем проверку с БД менеджера.
+    //
+    //
+    //     const redisClient = await getRedisClient();
+    //     const pwd = await redisClient.get(`auth:${username}`);
+    //     if (pwd) {
+    //         console.log(pwd);
+    //         if (pwd !== password) {
+    //             //Если пользователь найден и пароль НЕ совпадает
+    //             return res.status(401).json({
+    //                 error: true,
+    //                 message: "Не верный пароль",
+    //             });
+    //         } else {
+    //             //Если пользователь найден и пароль совпадают, не чего не делаем
+    //             return res.status(202).json({
+    //                 success: true,
+    //             });
+    //         }
+    //     } else {
+    //
+    //     }
+    //
+    //
+    //     //Регистрация пользователя в Redis.
+    //     //redisClient.set(`auth:${username}`, password);
+    //
+    //     res.status(200).json({
+    //         success: true,
+    //         message: "✅ Пользователь успешно зарегистрирован",
+    //         //  username: username,
+    //         // password: password
+    //     });
+    // });
 
 
     // Обработка отключения клиента (например, если клиент закрыл соединение)
