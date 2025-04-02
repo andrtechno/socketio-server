@@ -12,10 +12,10 @@
 ## Start custom clear server.js
 ``node server.js``
 
-open http://localhost/3000
+Socket http://localhost/3000
 
-
-
+Admin panel: http://192.168.211.244:3000/admin
+Server url http://192.168.211.244:3000
 
 
 #### Yii2 PHP send

@@ -2,12 +2,12 @@ version: '3'
 services:
   app:
     build: .  # Собираем образ с помощью Dockerfile из текущей директории
-    container_name: my-node-app
+    container_name: socket-app
     ports:
       - "3000:3000"  # Пробрасываем порт 3000
     environment:
-      - DB_HOST=mongo
-      - DB_PORT=27017
+      - DB_HOST=mysql
+      - DB_PORT=3306
       - DB_USERNAME=root
       - DB_PASSWORD=example_password
       - DB_NAME=my_database

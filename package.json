@@ -1,10 +1,10 @@
 {
     "name": "socket.io.server",
     "version": "1.0.0",
-    "main": "server2.js",
-    "type": "module",
+    "main": "index.js",
+    "type": "commonjs",
     "scripts": {
-        "start": "node server2.js",
+        "start": "node index.js",
         "test": "jest"
     },
     "dependencies": {

@@ -52,19 +52,15 @@ const io = new Server(server, {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+let pubClient, subClient;
 
 // HTTP API для отправки сообщений в WebSocket
 app.use(express.json());
 
-// app.get('/admin', (req, res, next) => {
-//     res.send(express.static('./node_modules/@socket.io/admin-ui/ui/dist'))
-// })
-
+// HTTP Admin panel
 app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.io/admin-ui', 'ui', 'dist')));
 
-// app.use(express.static('./node_modules/@socket.io/admin-ui/ui/dist'));
-let pubClient, subClient;
+
 
 async function setupRedisAdapter() {
     pubClient = redisConf(); // Получаем клиент Redis
@@ -84,7 +80,7 @@ async function authenticateToken(req, res, next) {
 
     if (token == null) return res.sendStatus(401); // No token
 
-    console.log(token);
+   // console.log(token);
 
 
     const redisClient = await getRedisClient();
@@ -103,11 +99,10 @@ async function authenticateToken(req, res, next) {
 Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
-    //Middleware
+    //Common Middleware
     //io.use(authMiddleware);
 
-// Интеграция Socket.IO Admin
-
+    // Интеграция Socket.IO Admin
     instrument(io, {
         auth: false,
         mode:"development"
@@ -141,10 +136,8 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
                 logger.info(`Sent to channel ${channel}:`, message);
-                //res.status(200).send("Message sent");
                 res.status(200).json({success: true});
             } else {
-                //res.status(400).send("Channel and message are required");
                 res.status(400).json({success: false});
             }
         });

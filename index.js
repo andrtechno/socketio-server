@@ -1,10 +1,11 @@
 
-import express from "express";
-import fs from 'fs';
-import path from 'path';
+const express = require('express')
+const fs =  require('fs');
+const path =  require('path');
 //const server = require('http').createServer();
-import http from "http";
-import {Server} from 'socket.io';
+const http =  require("http");
+const {Server} =  require('socket.io');
+const {fileURLToPath} =  require('url');
 
 const app = express();
 const server = http.createServer({
@@ -24,18 +25,19 @@ app.get("/", (req, res) => {
 
 
 
+
 const port = 3000;
-const dir = path.dirname;
+const dir = __dirname;
 const host = '0.0.0.0';
 const factory = options => {
     options = options || {};
     // is version 0x?
-    if (typeof socketio.listen === 'function' && options.path) {
+    if (typeof io.listen === 'function' && options.path) {
         options.resource = options.path;
         delete options.path;
     }
-    return typeof socketio === 'function' ? socketio(server, options) :
-        socketio.listen(server, options);
+    return typeof io === 'function' ? io(server, options) :
+        io.listen(server, options);
 }
 const serve = (prefix, io) => {
     fs
