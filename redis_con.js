@@ -40,7 +40,11 @@ async function getRedisClient() {
     return redisClient;
 }
 
-
+/**
+ * scanKeys('key:*')
+ * @param pattern
+ * @returns {Promise<*[]>}
+ */
 async function scanKeys(pattern) {
     let cursor = 0;
     let keys = [];
@@ -54,9 +58,13 @@ async function scanKeys(pattern) {
     return keys;
 }
 
-
+/**
+ * deleteKeysByPattern('key:*')
+ * @param pattern
+ * @returns {Promise<boolean>}
+ */
 async function deleteKeysByPattern(pattern) {
-    let cursor = '0';
+    let cursor = 0;
     const client = await getRedisClient();
     do {
         const result = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });

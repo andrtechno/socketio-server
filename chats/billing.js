@@ -10,12 +10,14 @@ async function billingNamespace(io) {
     billingNamespace.use(authMiddleware);
 
     billingNamespace.on("connection", (socket) => {
-        logger.info(`🔗 Клиент подключился к /billing: ${socket.id} / ${socket.decoded.userId}`);
-
+        logger.info(`🔗 Клиент подключился к /billing: ${socket.id} / ${socket.decoded.id}`);
 
 
         getRedisClient().then((redis) => {
-            redis.hSet(`connection:${socket.id}`,socket.decoded);
+            redis.hSet(`connection:${socket.id}`, socket.decoded);
+
+
+
 
             socket.on("subscribe", (data) => {
                 logger.info(`📩 Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
@@ -24,31 +26,39 @@ async function billingNamespace(io) {
                     socket.join(data.channel);
 
 
-                 //   getRedisClient().then((redis) => {
-
-                        // redis.set(`connection:${socket.id}`,JSON.stringify(socket.decoded));
 
 
-                        const exists = redis.exists(`subscribe:${data.channel}:${socket.decoded.userId}`);
-                        if (exists === 1) {
-                            const subscribeSata = redis.hGetAll(`subscribe:${data.channel}:${socket.decoded.userId}`);
-                            logger.info(`${socket.id} subscribe:${data.channel}:${socket.decoded.userId} redis.hGetAll`);
-                        } else {
-                            logger.info(`${socket.id} subscribe:${data.channel}:${socket.decoded.userId} redis.hSet`);
-                            redis.hSet(`subscribe:${data.channel}:${socket.decoded.userId}`, socket.decoded);
-                        }
-                //    });
+
+
+
+
+                 //   redis.del(`offline:billing:${socket.decoded.id}`);
+
+                    //   getRedisClient().then((redis) => {
+
+                    // redis.set(`connection:${socket.id}`,JSON.stringify(socket.decoded));
+
+
+                    const exists = redis.exists(`subscribe:${data.channel}:${socket.decoded.id}`);
+                    if (exists === 1) {
+                        const subscribeSata = redis.hGetAll(`subscribe:${data.channel}:${socket.decoded.id}`);
+                        logger.info(`${socket.id} subscribe3:${data.channel}:${socket.decoded.id} redis.hGetAll`);
+                    } else {
+                        logger.info(`${socket.id} subscribe2:${data.channel}:${socket.decoded.id} redis.hSet`);
+                        redis.hSet(`subscribe:${data.channel}:${socket.decoded.id}`, socket.decoded);
+                    }
+                    //    });
 
 
                     // (async () => {
                     //     try {
                     //         const exists = await redisClient.exists('subscribe:503');
                     //         if (exists === 1) {
-                    //             const subscribeSata = await redisClient.hGetAll(`subscribe:${socket.decoded.userId}`);
-                    //             console.log('subscribe exists:', subscribeSata.userId);
+                    //             const subscribeSata = await redisClient.hGetAll(`subscribe:${socket.decoded.id}`);
+                    //             console.log('subscribe exists:', subscribeSata.id);
                     //         } else {
                     //             console.log('subscribe.');
-                    //             redisClient.hSet(`subscribe:${socket.decoded.userId}`, socket.decoded);
+                    //             redisClient.hSet(`subscribe:${socket.decoded.id}`, socket.decoded);
                     //         }
                     //     } catch (error) {
                     //         console.error('Error checking key existence:', error);
@@ -56,7 +66,7 @@ async function billingNamespace(io) {
                     // })();
 
 
-                    //  redisClient.hSet(`subscribe:${socket.decoded.userId}`, socket.decoded);
+                    //  redisClient.hSet(`subscribe:${socket.decoded.id}`, socket.decoded);
 
 
                     logger.info(`✅ ${socket.id} Подписан на канал: ${data.channel}`);
@@ -80,7 +90,6 @@ async function billingNamespace(io) {
                     const messages = await redisClient.lRange(`channel:billing:messages`, 0, -1);
 
                     if (messages) {
-                        //console.log("📥 Handshake данные:", socket.handshake);
                         messages.forEach((message) => {
 
 
@@ -101,8 +110,10 @@ async function billingNamespace(io) {
 
                             logger.info(message);
                         });
-                        await redisClient.del(`channel:billing:messages`); // Очистка списка сообщений
+                        //await redisClient.del(`channel:billing:messages`); // Очистка списка сообщений
                     }
+
+
                     //await redisClient.lSet(`channel:billing:messages`, 4, "TO_DELETE");
                     // Удаляем первый найденный "TO_DELETE"
                     //await redisClient.lRem(`channel:billing:messages`, 1, "TO_DELETE");
@@ -110,17 +121,17 @@ async function billingNamespace(io) {
 
                 }
 
-                //sendUnreadMessages();
+               // sendUnreadMessages();
             });
 
 
             socket.on('disconnect', () => {
-                logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.userId}`);
+                logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
                 redisClient.del(`connection:${socket.id}`);
+
+
             });
         });
-
-
 
 
     });

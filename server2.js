@@ -3,7 +3,6 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const {Server} = require('socket.io');
-const fs = ('fs');
 const logger = require('./logger.js');
 const {billingNamespace} = require("./chats/billing.js");
 const {createAdapter} = require('@socket.io/redis-adapter');
@@ -13,12 +12,11 @@ const {
 } = require("./auth.js");
 const {body, validationResult} = require('express-validator');
 const {validateUserAuth} = require("./validators/UserAuth.js");
-const {exampleUsage, getUserByToken, poolExample} = require("./database.js");
 const jwt = require("jsonwebtoken");
-const { instrument } = require('@socket.io/admin-ui');
+const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
-const { fileURLToPath } = require('url');
 const {scanKeys, deleteKeysByPattern} = require("./redis_con");
+const validateBillingBody = require("./validators/ValidateBillingBody");
 
 
 const PORT = process.env.WS_PORT || 3000;
@@ -45,10 +43,9 @@ const io = new Server(server, {
         //origin: "*",
         origin: ["http://socket.loc:3000"],
         methods: ["GET", "POST"],
-        credentials:true
+        credentials: true
     }
 });
-
 
 
 // const __filename = fileURLToPath(import.meta.url);
@@ -60,7 +57,6 @@ app.use(express.json());
 
 // HTTP Admin panel
 app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.io/admin-ui', 'ui', 'dist')));
-
 
 
 async function setupRedisAdapter() {
@@ -81,23 +77,14 @@ async function authenticateToken(req, res, next) {
 
     if (token == null) return res.sendStatus(401); // No token
 
-    console.log(token);
+
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) return res.sendStatus(403); // Invalid token
         req.decoded = user; // Add user data to the request object
     });
 
-   // const redisClient = await getRedisClient();
-   // const pwd = await redisClient.get(`auth:${username}`);
+    next(); // Proceed to the next middleware or route handler
 
-
-   // redisClient.set(`auth:${username}`, token);
-      //  req.user = user; // Add user data to the request object
-        next(); // Proceed to the next middleware or route handler
-    // jwt.verify(token, secretKey, (err, user) => {
-    //     if (err) return res.sendStatus(403); // Invalid token
-
-    // });
 }
 
 Promise.resolve().then(setupRedisAdapter).then(() => {
@@ -109,11 +96,12 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     // Интеграция Socket.IO Admin
     instrument(io, {
         auth: false,
-        mode:"development"
+        mode: "development"
         //namespaceName: "/admin"
     });
-
-
+    // io.on("connection", (socket) => {
+    //     logger.info(`🔗 Клиент подключился к / ${socket.id} / ${socket.decoded.id}`);
+    // });
 
 //transactionNamespace(io);
     billingNamespace(io).then(r => {
@@ -121,9 +109,28 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
         app.post("/send", authenticateToken, (req, res) => {
             const {channel, message} = req.body;
 
+
+
+
+            const { error, value  } = validateBillingBody(req.body);
+
+             if (error) {
+                 console.log("Ошибки валидации:", error.details.map(err => err.message));
+                 logger.error("Ошибки валидации:");
+            return res.status(403).json({success: false,message:'Ошибки валидации',errors:error.details.map(err => err.message)});
+             } else {
+                 //ok
+                // console.log('ok');
+             }
+
+
+
+
+
+
             // Если канал и сообщение указаны, отправляем сообщение в канал
             if (channel && message) {
-
+                io.of("/billing").to(channel).timeout(5000).emit("test", {text:'lalal'});
 
                 // io.of("/billing").to(channel).emit("event", message);
                 io.of("/billing").to(channel).timeout(5000).emit("event", message, (err, responses) => {
@@ -137,32 +144,37 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
 
 
 
-                            scanKeys('subscribe:billing:*')
-                                .then(list => {
 
-                                    list.forEach((item) => {
-                                        logger.info(item);
-                                    });
-
-                                })
-                                .catch(console.error);
+                            getRedisClient().then((redis) => {
+                                 redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
 
 
-                            getRedisClient().then((redis)=>{
-                                // redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
+                                scanKeys('subscribe:billing:*')
+                                    .then(list => {
 
 
 
-                                const data = {
-                                    channel: channel,
-                                    message: JSON.stringify(message)
-                                }
-                                redis.hSet(`channel:${channel}:messages`, data);
+
+
+                                        list.forEach((item) => {
+
+                                          //  const [first, channel, user_id] = item.split(':');
+                                        //    console.log(first,channel,user_id);
+
+
+                                            logger.info(item);
+                                           // redis.rPush(`messed:${item}`, JSON.stringify(message));
+                                        });
+
+                                    })
+                                    .catch(console.error);
+
+                                // const data = {
+                                //     channel: channel,
+                                //     message: JSON.stringify(message)
+                                // }
+                                // redis.hSet(`channel:${channel}:messages`, data);
                             });
-
-
-
-
 
 
                             logger.info("Не отправил подтверждение! записываем в Redis");
@@ -232,8 +244,8 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
         res.status(200).json({
             success: true,
             message: "✅ Пользователь успешно зарегистрирован",
-          //  username: username,
-           // password: password
+            //  username: username,
+            // password: password
         });
     });
 
@@ -292,14 +304,12 @@ process.on('uncaughtException', (err) => {
 });
 
 
-
-
 // Пример регистрации и логина (для тестирования)
 //     registerUser('test_user', 'password123').then((user) => {
 //         loginUser('test_user', 'password123').then((user) => {
 //             if (user) {
-//                 generateAccessToken({ userId: 123, username: user.username }).then((accessToken) => {
-//                     generateRefreshToken({ userId: 123, username: user.username }).then((refreshToken) => {
+//                 generateAccessToken({ id: 123, username: user.username }).then((accessToken) => {
+//                     generateRefreshToken({ id: 123, username: user.username }).then((refreshToken) => {
 //                         console.log('Access Token:', accessToken);
 //                         console.log('Refresh Token:', refreshToken);
 //

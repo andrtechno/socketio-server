@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const {getRedisClient} = require("./redis_con.js");
-
+const Joi = require('joi');
+const logger = require("./logger.js");
 
 function verifyToken(token) {
     try {
@@ -23,11 +24,34 @@ async function authMiddleware(socket, next) {
         if (!decoded) {
             return next(new Error('invalid token'));
         }
-        socket.decoded = decoded; // Сохраняем расшифрованный токен в сокете
 
 
 
-        next();
+
+
+        //Validate jwt payload data
+        const schema = Joi.object({
+            id: Joi.number().integer().required(),
+            email: Joi.string().email().required(),
+            first_name: Joi.string().min(1).required(),
+            last_name: Joi.string().min(1).required(),
+        });
+
+        const { error } = schema.validate(decoded, { abortEarly: false });
+
+        if (error) {
+            console.log("Ошибки валидации:", error.details.map(err => err.message));
+            logger.error("Ошибки валидации:");
+            return next(new Error('Ошибки валидации'));
+        } else {
+            socket.decoded = decoded; // Сохраняем расшифрованный токен в сокете
+            next();
+        }
+
+
+
+
+
     } catch (err) {
         return next(new Error('Неверный токен'));
     }
