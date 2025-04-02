@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
-import {getRedisClient} from "./redis_con.js";
+const jwt = require('jsonwebtoken');
+const {getRedisClient} = require("./redis_con.js");
 
 
 function verifyToken(token) {
@@ -11,7 +11,7 @@ function verifyToken(token) {
     }
 }
 
-export async function authMiddleware(socket, next) {
+async function authMiddleware(socket, next) {
     const token = socket.handshake.auth.token;
 
     if (!token) {
@@ -33,7 +33,7 @@ export async function authMiddleware(socket, next) {
     }
 }
 
-export async function generateToken(user) {
+async function generateToken(user) {
     const token = jwt.sign(user, process.env.JWT_SECRET);
     const redisClient = await getRedisClient(); // Получаем клиент Redis
     await redisClient.set(`token:${token}`, 'valid', { EX: 3600 }); // Храним токен в Redis на 1 час
@@ -41,8 +41,9 @@ export async function generateToken(user) {
 }
 
 
-export async function invalidateToken(token) {
+async function invalidateToken(token) {
     const redisClient = await getRedisClient(); // Получаем клиент Redis
     await redisClient.del(`token:${token}`);
 }
 
+module.exports = {invalidateToken,generateToken,authMiddleware};

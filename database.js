@@ -1,5 +1,5 @@
-import mysql from 'mysql2/promise';
-import logger from "./logger.js";
+const mysql = require('mysql2/promise');
+const logger = require("./logger.js");
 
 
 const pool = mysql.createPool({
@@ -30,7 +30,7 @@ async function executeQueryWithPool(sql, values = []) {
     }
 }
 
-export async function poolExample() {
+async function poolExample() {
     try {
         const users = await executeQueryWithPool('SELECT * FROM user LINIT 1');
         console.log("пользователи из пула: ", users);
@@ -42,7 +42,7 @@ export async function poolExample() {
 }
 
 
-export async function connectToDatabase() {
+async function connectToDatabase() {
     try {
         const connection = await mysql.createConnection({
             host: process.env.DB_MNGR_HOST,
@@ -59,7 +59,7 @@ export async function connectToDatabase() {
 }
 
 
-export async function executeQuery(connection, sql, values = []) {
+async function executeQuery(connection, sql, values = []) {
     try {
         const [rows, fields] = await connection.execute(sql, values);
         return rows;
@@ -69,7 +69,7 @@ export async function executeQuery(connection, sql, values = []) {
     }
 }
 
-export async function exampleUsage() {
+async function exampleUsage() {
     const connection = await connectToDatabase();
 
     try {
@@ -103,7 +103,7 @@ export async function exampleUsage() {
 
 
 
-export async function getUserByToken(username, password) {
+async function getUserByToken(username, password) {
     const connection = await connectToDatabase();
 
     try {
@@ -134,3 +134,5 @@ export async function getUserByToken(username, password) {
         }
     }
 }
+
+module.exports = {getUserByToken,exampleUsage,executeQuery,connectToDatabase,poolExample};

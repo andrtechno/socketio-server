@@ -1,7 +1,9 @@
-import { body,validationResult } from "express-validator";
+const { body,validationResult } = require("express-validator");
 
 const existingUsers = ["test@example.com", "admin@example.com"];
-export const validateUserAuth = [
+
+
+const validateUserAuth = [
     body("username")
         .trim()
         .isEmail()
@@ -16,5 +18,6 @@ export const validateUserAuth = [
 
     body("password")
         .isLength({ min: 6 }).withMessage("Пароль должен быть минимум 6 символов")
-        //.matches(/\d/).withMessage("Пароль должен содержать хотя бы одну цифру"),
+    //.matches(/\d/).withMessage("Пароль должен содержать хотя бы одну цифру"),
 ];
+module.exports = {validateUserAuth}

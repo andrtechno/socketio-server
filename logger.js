@@ -1,5 +1,5 @@
-import winston from "winston";
-import util from 'util';
+const winston = require("winston");
+const util = require('util');
 
 const logger = winston.createLogger({
     level: 'info',
@@ -32,4 +32,4 @@ if (process.env.NODE_ENV !== 'production') {
         format: winston.format.simple(),
     }));
 }
-export default logger;
+module.exports = logger;

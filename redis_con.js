@@ -1,9 +1,9 @@
-import redis from 'redis';
-import logger from "./logger.js";
+const redis = require('redis');
+const logger = require("./logger.js");
 
 let redisClient;
 
-export function redisConf() {
+function redisConf() {
     redisClient = redis.createClient({
         database: process.env.REDIS_DB,
         socket: {
@@ -13,20 +13,62 @@ export function redisConf() {
     });
 
     redisClient.on('error', (err) => logger.error('Redis Client Error'));
+    redisClient.on('connect', () => logger.info('Redis Client Connected'));
+
     return redisClient;
 }
 
 async function connectRedis() {
-
-    await redisConf().connect();
-    logger.info('Redis подключен');
-    return redisClient;
+    try {
+        await redisConf().connect();
+        logger.info('Redis подключен');
+        return redisClient;
+    } catch (error) {
+        logger.error('Ошибка подключения к Redis:', error);
+        return null; // Return null in case of error
+    }
 }
 
-export async function getRedisClient() {
-    if (!redisClient) {
-        logger.error('Redis connect error');
-        return connectRedis();
+async function getRedisClient() {
+    if (!redisClient || !redisClient.isOpen) {
+        logger.warn('Redis client not available, attempting to reconnect');
+        redisClient = await connectRedis();
+        if(!redisClient){
+            return null;
+        }
     }
     return redisClient;
 }
+
+
+async function scanKeys(pattern) {
+    let cursor = 0;
+    let keys = [];
+    const client = await getRedisClient();
+    do {
+        const result = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });
+        cursor = result.cursor;
+        keys.push(...result.keys);
+    } while (cursor !== 0);
+
+    return keys;
+}
+
+
+async function deleteKeysByPattern(pattern) {
+    let cursor = '0';
+    const client = await getRedisClient();
+    do {
+        const result = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });
+        cursor = result.cursor;
+        if (result.keys.length > 0) {
+            await client.del(result.keys);
+            logger.info(`Удалены ключи: ${result.keys.join(', ')}`);
+        }
+    } while (cursor !== 0);
+
+    logger.info('Удаление по шаблону завершено!');
+    return true;
+}
+
+module.exports = {redisConf, getRedisClient,scanKeys,deleteKeysByPattern}

@@ -1,25 +1,26 @@
 //Основной сервер
-import dotenv from 'dotenv';
-import express from 'express';
-import http from 'http';
-import {Server} from 'socket.io';
-import fs from 'fs';
-import logger from './logger.js';
-import {billingNamespace} from "./chats/billing.js";
-import {createAdapter} from '@socket.io/redis-adapter';
-import {getRedisClient, redisConf} from "./redis_con.js";
-import {
+require('dotenv').config();
+const express = require('express');
+const http = require('http');
+const {Server} = require('socket.io');
+const fs = ('fs');
+const logger = require('./logger.js');
+const {billingNamespace} = require("./chats/billing.js");
+const {createAdapter} = require('@socket.io/redis-adapter');
+const {getRedisClient, redisConf} = require("./redis_con.js");
+const {
     authMiddleware,
-} from "./auth.js";
-import {body, validationResult} from 'express-validator';
-import {validateUserAuth} from "./validators/UserAuth.js";
-import {exampleUsage, getUserByToken, poolExample} from "./database.js";
-import jwt from "jsonwebtoken";
-import { instrument } from '@socket.io/admin-ui';
-import path from "path";
-import { fileURLToPath } from 'url';
+} = require("./auth.js");
+const {body, validationResult} = require('express-validator');
+const {validateUserAuth} = require("./validators/UserAuth.js");
+const {exampleUsage, getUserByToken, poolExample} = require("./database.js");
+const jwt = require("jsonwebtoken");
+const { instrument } = require('@socket.io/admin-ui');
+const path = require("path");
+const { fileURLToPath } = require('url');
+const {scanKeys, deleteKeysByPattern} = require("./redis_con");
 
-dotenv.config(); // Load environment variables from .env file
+
 const PORT = process.env.WS_PORT || 3000;
 
 
@@ -50,8 +51,8 @@ const io = new Server(server, {
 
 
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 let pubClient, subClient;
 
 // HTTP API для отправки сообщений в WebSocket
@@ -80,10 +81,13 @@ async function authenticateToken(req, res, next) {
 
     if (token == null) return res.sendStatus(401); // No token
 
-   // console.log(token);
+    console.log(token);
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403); // Invalid token
+        req.decoded = user; // Add user data to the request object
+    });
 
-
-    const redisClient = await getRedisClient();
+   // const redisClient = await getRedisClient();
    // const pwd = await redisClient.get(`auth:${username}`);
 
 
@@ -110,6 +114,7 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     });
 
 
+
 //transactionNamespace(io);
     billingNamespace(io).then(r => {
 
@@ -128,8 +133,40 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
                         if (responses[0] && responses[0].status === "accepted") {
                             logger.info("Подтвердил получение сообщения:", responses);
                         } else {
+
+
+
+
+                            scanKeys('subscribe:billing:*')
+                                .then(list => {
+
+                                    list.forEach((item) => {
+                                        logger.info(item);
+                                    });
+
+                                })
+                                .catch(console.error);
+
+
+                            getRedisClient().then((redis)=>{
+                                // redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
+
+
+
+                                const data = {
+                                    channel: channel,
+                                    message: JSON.stringify(message)
+                                }
+                                redis.hSet(`channel:${channel}:messages`, data);
+                            });
+
+
+
+
+
+
                             logger.info("Не отправил подтверждение! записываем в Redis");
-                            //redisClient.rPush(`channel:${channel}:messages`, JSON.stringify(message));
+
                         }
                     }
                 });
@@ -201,6 +238,16 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     });
 
 
+    // Обработка отключения клиента (например, если клиент закрыл соединение)
+    server.on('close', () => {
+        logger.info('Клиент отключился');
+    });
+
+    // Обработка события завершения запроса (response)
+    server.on('finish', () => {
+        logger.info('Ответ отправлен');
+    });
+
     server.on('error', (e) => {
         if (e.code === 'EADDRINUSE') {
             logger.error('Address in use, retrying...');
@@ -218,6 +265,33 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     });
 
 });
+
+async function shutdown() {
+    logger.info('Завершаем процесс...');
+
+    try {
+        const redis = await getRedisClient();
+        await deleteKeysByPattern(`connection:*`); //Удаляем всех кто был подключен
+        redis.quit(); // Закрываем соединение с Redis
+
+        logger.info('Redis соединение закрыто.');
+    } catch (err) {
+        logger.error('Ошибка при закрытии Redis:', err);
+    }
+
+    process.exit(0);
+}
+
+
+process.on('SIGINT', shutdown);   // Ctrl+C
+process.on('SIGTERM', shutdown);  // Команда kill
+process.on('exit', shutdown);     // Завершение процесса
+process.on('uncaughtException', (err) => {
+    logger.error('Необработанное исключение:', err);
+    shutdown();
+});
+
+
 
 
 // Пример регистрации и логина (для тестирования)
