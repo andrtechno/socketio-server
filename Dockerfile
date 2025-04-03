@@ -1,7 +1,7 @@
 # Use an official Node.js runtime as a parent image
 FROM ubuntu:latest
 
-RUN apt update && apt install -y curl git
+RUN apt update && apt install -y curl git supervisor
 
 # Set the working directory in the container
 WORKDIR /socket
@@ -21,8 +21,18 @@ RUN npm install
 # Copy the rest of the application code to the working directory
 COPY . .
 
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+
+# Copy env
+# COPY .env.example /.env
+
 # Expose the port your Socket.IO server listens on
 EXPOSE 3000
 
+# Define the command to run your application with supervisor
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+
 # Define the command to run your application
-CMD [ "node", "server2.js" ]
+# CMD [ "npm", "start" ]

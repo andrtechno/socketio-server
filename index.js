@@ -157,8 +157,7 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
         });
 
         socket.on("ping", () => {
-            console.log("Получен ping от клиента");
-            socket.emit("pong"); // Отправляем 'pong' обратно
+            socket.emit("pong");
         });
     });
 
