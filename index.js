@@ -17,6 +17,15 @@ const path = require("path");
 const validateBillingBody = require("./validators/requests/ValidateBillingBody");
 const ValidateTransactionRequest = require("./validators/requests/ValidateTransactionRequest");
 
+const fs = require('fs');
+const i18n = require('i18n');
+
+i18n.configure({
+    locales: ['en', 'uk', 'ru'],
+    directory: path.join(__dirname, 'locales'),
+    defaultLocale: 'en',
+});
+//i18n.setLocale('uk');
 
 const PORT = process.env.WS_PORT || 3000;
 
@@ -33,8 +42,8 @@ const app = express();
 const options = {
     //key: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\key.pem"),  // Для теста: самоподписанный ключ
     //cert: fs.readFileSync("C:\\OSPanel\\home\\socket.loc\\cert.pem"), // Для теста: самоподписанный сертификат
-     pingTimeout: 10000, // Увеличить таймаут пинга
-     pingInterval: 5000,
+    pingTimeout: 10000, // Увеличить таймаут пинга
+    pingInterval: 5000,
 };
 const server = http.createServer(options, app);
 const io = new Server(server, {
@@ -83,8 +92,18 @@ async function authenticateToken(req, res, next) {
     });
 
 
-    const {message} = req.body;
-    const channel = req.params.channel; // Получаем параметр из URL
+    const {channel, message} = req.body;
+
+
+    //Разрешенные каналы
+    const channelAllow = ["billing", "transaction", "main"];
+
+    if (channelAllow.indexOf(channel) === -1) {
+        return res.status(400).json({
+            success: false,
+            message: 'не верный канал.',
+        });
+    }
 
     if (channel === 'billing') {
         const {error, value} = validateBillingBody(req.body);
@@ -99,7 +118,7 @@ async function authenticateToken(req, res, next) {
         }
     }
 
-
+    console.log(channel);
     if (channel === 'transaction') {
         const {error, value} = ValidateTransactionRequest(req.body);
 
@@ -175,29 +194,23 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
     }
 
 
-    function sendMessage(io, { channel = null, eventName, message }) {
+    function sendMessage(io, {channel = null, eventName, message}) {
         const emitter = channel ? io.to(channel) : io; // Если есть канал → отправляем в него, иначе всем
-
         emitter.timeout(5000).emit(eventName, message, handleResponse);
     }
 
 
     app.post("/send", authenticateToken, (req, res) => {
 
-        const {channel, message,eventName} = req.body;
+        const {channel, message, eventName} = req.body;
 
         // Если канал и сообщение указаны, отправляем сообщение в канал
         if (channel && message) {
 
-            let channelName =null;
-            if (channel === 'billing') {
-                channelName=channel;
-            } else if (channel === 'transaction') {
-                channelName=channel;
+            let channelName = 'main';
+            if (channel) {
+                channelName = channel;
             }
-            // io.timeout(5000);
-            // io.emit(eventName, message, handleResponse);
-
 
             sendMessage(io, {
                 channel: channelName,
@@ -205,13 +218,17 @@ Promise.resolve().then(setupRedisAdapter).then(() => {
                 message: message
             });
 
-          //  io.to(channel).timeout(5000).emit(eventName, message, handleResponse);
-
 
             logger.info(`Sent to channel ${channel}:`, message);
-            res.status(200).json({success: true});
+            res.status(200).json({
+                success: true,
+                message: i18n.__('sendMessageSuccess')
+            });
         } else {
-            res.status(400).json({success: false});
+            res.status(400).json({
+                success: false,
+                message: i18n.__('channelOrMessageMissing')
+            });
         }
     });
 

@@ -8,6 +8,8 @@ const Joi = require("joi");
 
 const transactionSchema  = Joi.object({
     namespace: Joi.string().min(3).required(),
+    eventName: Joi.string().required(),
+    channel: Joi.string().required(),
     message: Joi.object({
         id: Joi.number().integer().required(),
         subscription_id: Joi.allow(null).optional(),
