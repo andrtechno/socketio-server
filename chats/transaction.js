@@ -1,6 +1,6 @@
 const logger = require("../utils/logger");
-const {authMiddleware} = require("../middleware/auth.middleware");
-const redisService = require('../services/redis.service2');
+const {authMiddleware} = require("../middleware");
+const redisService = require('../services/redis.service');
 
 async function transactionNamespace(io) {
     const transactionNamespace = io.of("/transaction");

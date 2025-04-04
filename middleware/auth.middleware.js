@@ -10,8 +10,8 @@ function verifyToken(token) {
     }
 }
 
-
-async function authMiddleware(socket, next) {
+//const authMiddleware = async (socket, next) => {
+async function authMiddleware (socket, next) {
     const token = socket.handshake.auth.token;
 
     if (!token) {
@@ -42,4 +42,4 @@ async function authMiddleware(socket, next) {
 }
 
 
-module.exports = {authMiddleware};
+module.exports = authMiddleware;

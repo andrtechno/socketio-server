@@ -1,5 +1,5 @@
 const logger = require("../utils/logger");
-const redisService = require("../services/redis.service2");
+const redisService = require("../services/redis.service");
 
 function sendMessage(io, {channel = null, eventName, message, namespace}) {
     const emitter = channel ? io.to(channel) : io; // Если есть канал → отправляем в него, иначе всем

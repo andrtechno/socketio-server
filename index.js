@@ -4,24 +4,22 @@ const express = require('express');
 const http = require('http');
 const {Server} = require('socket.io');
 const logger = require('./utils/logger');
-const {billingNamespace} = require("./chats/billing.js");
 const {transactionNamespace} = require("./chats/transaction");
 const {createAdapter} = require('@socket.io/redis-adapter');
-//const {getRedisClient, redisConf, deleteKeysByPattern, scanKeys} = require("./services/redis.service");
-const redisService = require('./services/redis.service2');
+const redisService = require('./services/redis.service');
 const {sendMessage} = require('./socket');
+
 const {
     authMiddleware,
-} = require("./middleware/auth.middleware");
-const jwt = require("jsonwebtoken");
+    requestTokenMiddleware
+} = require("./middleware");
 const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
 const validateBillingBody = require("./validators/requests/ValidateBillingBody");
-const ValidateTransactionRequest = require("./validators/requests/ValidateTransactionRequest");
-
 const fs = require('fs');
 const i18n = require('i18n');
-const {response} = require("express");
+const setupRedisAdapter = require("./socket/adapter");
+
 
 i18n.configure({
     locales: ['en', 'uk', 'ru'],
@@ -31,15 +29,6 @@ i18n.configure({
 //i18n.setLocale('uk');
 
 const PORT = process.env.WS_PORT || 3000;
-
-
-// const logFile = fs.createWriteStream('log.txt', { flags: 'a' });
-// const logStdout = process.stdout;
-//
-// console.log = function (...args) {
-//     logFile.write(util.format.apply(null, args) + '\n');
-//     logStdout.write(util.format.apply(null, args) + '\n');
-// };
 
 const app = express();
 const options = {
@@ -65,84 +54,6 @@ app.use(express.json());
 // HTTP Admin panel
 app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.io/admin-ui', 'ui', 'dist')));
 
-
-async function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-    if (token == null) return res.sendStatus(401); // No token
-
-
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Invalid token
-        req.decoded = user; // Add user data to the request object
-    });
-
-
-    const {channel, message} = req.body;
-
-
-    //Разрешенные каналы
-    const channelAllow = ["billing", "transaction", "main"];
-
-    if (channelAllow.indexOf(channel) === -1) {
-        return res.status(400).json({
-            success: false,
-            message: 'не верный канал.',
-        });
-    }
-
-    if (channel === 'billing') {
-        const {error, value} = validateBillingBody(req.body);
-
-        if (error) {
-            logger.error("Ошибка валидации:");
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: error.details.map(err => err.message)
-            });
-        }
-    }
-
-    console.log(channel);
-    if (channel === 'transaction') {
-        const {error, value} = ValidateTransactionRequest(req.body);
-
-        if (error) {
-            logger.error("Ошибка валидации:");
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: error.details.map(err => err.message)
-            });
-        }
-    }
-
-    console.log('Proceed to the next middleware or route handler');
-    next(); // Proceed to the next middleware or route handler
-
-}
-
-/**
- * Подключает Redis Adapter к Socket.IO серверу
- * @param {import('socket.io').Server} io
- */
-async function setupRedisAdapter(io) {
-    await redisService.init();
-
-    const pubClient = redisService.getPubClient();
-    const subClient = redisService.getSubClient();
-
-    io.adapter(createAdapter(pubClient, subClient));
-    logger.info('Redis Adapter успешно установлен для Socket.IO');
-
-    //Удаляем подключение
-    await redisService.deleteKeysByPattern('connection:*');
-
-}
-
-
 Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
@@ -158,15 +69,13 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
     io.on("connection", (socket) => {
-        logger.info(`Клиент подключился к: ${socket.id} / ${socket.decoded.id}`);
+        logger.info(`[${socket.id}]${socket.decoded.id}: подключился.`);
 
 
-        socket.on("subscribe", (data) => {
-            logger.info(`Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
-
-            if (data.channel) {
-                socket.join(data.channel);
-                logger.info(`${socket.id} Подписан на канал: ${data.channel}`);
+        socket.on("subscribe", (channel) => {
+            if (channel) {
+                socket.join(channel);
+                logger.info(`${socket.id} Подписан на канал: ${channel}`);
             } else {
                 logger.info(`${socket.id} Ошибка: Не передан канал в subscribe`);
             }
@@ -198,7 +107,29 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
         });
     });
 
-    app.post("/send", authenticateToken, (req, res) => {
+    app.post("/push", (req, res) => {
+
+        const {channels, message, event} = req.body;
+
+        // Если канал и сообщение указаны, отправляем сообщение в канал
+        if (channels && message && event) {
+            io.to(channels).emit(event, message);
+            logger.info(`Sent to channel:`, message);
+            res.status(200).json({
+                success: true,
+                message: i18n.__('sendMessageSuccess')
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                message: i18n.__('channelOrMessageMissing')
+            });
+        }
+    });
+
+
+
+    app.post("/send", requestTokenMiddleware, (req, res) => {
 
         const {channel, message, eventName, namespace} = req.body;
 
@@ -331,62 +262,6 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     // });
 
 
-    // app.post("/register", validateUserAuth, async (req, res) => {
-    //
-    //     // try {
-    //     //     console.log(req.body);
-    //     //     JSON.parse(JSON.parse(req.body));
-    //     // } catch (e) {
-    //     //     logger.error(`Error json ${e.message}`);
-    //     //     res.status(500).json({error: true, message: e.message});
-    //     // }
-    //
-    //     const errors = validationResult(req);
-    //     const {username, password} = req.body;
-    //
-    //
-    //     // Если канал и сообщение указаны, отправляем сообщение в канал
-    //     if (!errors.isEmpty()) {
-    //         return res.status(400).json({errors: errors.array()});
-    //     }
-    //
-    //
-    //     //Здесь делаем проверку с БД менеджера.
-    //
-    //
-    //     const redisClient = await getRedisClient();
-    //     const pwd = await redisClient.get(`auth:${username}`);
-    //     if (pwd) {
-    //         console.log(pwd);
-    //         if (pwd !== password) {
-    //             //Если пользователь найден и пароль НЕ совпадает
-    //             return res.status(401).json({
-    //                 error: true,
-    //                 message: "Не верный пароль",
-    //             });
-    //         } else {
-    //             //Если пользователь найден и пароль совпадают, не чего не делаем
-    //             return res.status(202).json({
-    //                 success: true,
-    //             });
-    //         }
-    //     } else {
-    //
-    //     }
-    //
-    //
-    //     //Регистрация пользователя в Redis.
-    //     //redisClient.set(`auth:${username}`, password);
-    //
-    //     res.status(200).json({
-    //         success: true,
-    //         message: "✅ Пользователь успешно зарегистрирован",
-    //         //  username: username,
-    //         // password: password
-    //     });
-    // });
-
-
     // Обработка отключения клиента (например, если клиент закрыл соединение)
     server.on('close', () => {
         logger.info('Клиент отключился');
@@ -410,15 +285,17 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     });
 
     server.listen(PORT, () => {
-        logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'ffff');
+        logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'params_test');
     });
 
+}).catch(error => {
+    console.log(error);
 });
 
 async function shutdown() {
     try {
         console.log('Завершаем процесс...');
-        await redisService.quit();  // Убедитесь, что у вас есть метод для закрытия соединения
+        //await redisService.quit();  // Убедитесь, что у вас есть метод для закрытия соединения
         process.exit(0); // Завершаем процесс с кодом 0 (успешно)
     } catch (error) {
         // Логируем ошибки, если они произошли

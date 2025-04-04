@@ -7,17 +7,15 @@ async function billingNamespace(io) {
     const redisClient = await getRedisClient(); // Получаем клиент Redis
 
 
-    billingNamespace.use(authMiddleware);
-
-    billingNamespace.on("connection", (socket) => {
-        logger.info(`🔗 Клиент подключился к /billing: ${socket.id} / ${socket.decoded.id}`);
+    billingNamespace.use(authMiddleware).on("connection", (socket) => {
+        logger.info(`Клиент подключился к /billing: ${socket.id} / ${socket.decoded.id}`);
 
 
         getRedisClient().then((redis) => {
             redis.hSet(`connection:${socket.id}`, socket.decoded);
 
             socket.on("subscribe", (data) => {
-                logger.info(`📩 Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
+                logger.info(`Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
 
                 if (data.channel) {
                     socket.join(data.channel);
