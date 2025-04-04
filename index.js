@@ -19,6 +19,8 @@ const validateBillingBody = require("./validators/requests/ValidateBillingBody")
 const fs = require('fs');
 const i18n = require('i18n');
 const setupRedisAdapter = require("./socket/adapter");
+const {sendTelegramMessage} = require("./services/telegramService");
+const TelegramBot = require("node-telegram-bot-api");
 
 
 i18n.configure({
@@ -128,6 +130,26 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     });
 
 
+    app.get("/send-telegram", async (req, res) => {
+
+        const chatId = -1002424701840;  // ID вашего канала или группы
+        const message = 'message from socket service';
+        await sendTelegramMessage(chatId, message);
+        // const TELEGRAM_TOKEN = '7628685757:AAGptg14AutduPlu46IMWv3hSJvBZhWPdjA';
+        // const bot = new TelegramBot(TELEGRAM_TOKEN);
+        // bot.getUpdates().then(updates => {
+        //     updates.forEach(update => {
+        //         console.log(update.message.chat.id);  // Получаем chatId
+        //     });
+        // });
+
+        res.status(200).json({
+            success: true,
+            message: 'Message sent'
+        });
+
+
+    });
 
     app.post("/send", requestTokenMiddleware, (req, res) => {
 
