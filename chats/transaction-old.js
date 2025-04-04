@@ -1,20 +1,34 @@
 const logger = require("../utils/logger");
 const {getRedisClient} = require("../services/redis.service");
 const {authMiddleware} = require("../middleware/auth.middleware");
+const redisService = require('../services/redis.service2');
+const uuid = require('uuid');
 
-async function billingNamespace(io) {
-    const billingNamespace = io.of("/billing");
+async function transactionNamespace(io) {
+    const transactionNamespace = io.of("/transaction");
     const redisClient = await getRedisClient(); // Получаем клиент Redis
 
 
-    billingNamespace.use(authMiddleware);
 
-    billingNamespace.on("connection", (socket) => {
-        logger.info(`🔗 Клиент подключился к /billing: ${socket.id} / ${socket.decoded.id}`);
+    // Функция для добавления клиента в список подписанных на событие
+    function subscribeToEvent(eventName, clientId) {
+
+    }
+
+
+    transactionNamespace.use(authMiddleware);
+
+    transactionNamespace.on("connection", (socket) => {
+        logger.info(`🔗 Клиент подключился к /transaction: ${socket.id} / ${socket.decoded.id}`);
 
 
         getRedisClient().then((redis) => {
-            redis.hSet(`connection:${socket.id}`, socket.decoded);
+            redis.set(`connection:${socket.decoded.id}`, socket.id);
+
+            socket.on("ping", () => {
+                socket.emit("pong");
+            });
+
 
             socket.on("subscribe", (data) => {
                 logger.info(`📩 Клиент ${socket.id} подписался на: ${JSON.stringify(data)}`);
@@ -22,12 +36,6 @@ async function billingNamespace(io) {
                 if (data.channel) {
                     socket.join(data.channel);
 
-
-                 //   redis.del(`offline:billing:${socket.decoded.id}`);
-
-                    //   getRedisClient().then((redis) => {
-
-                    // redis.set(`connection:${socket.id}`,JSON.stringify(socket.decoded));
 
 
                     const exists = redis.exists(`subscribe:${data.channel}:${socket.decoded.id}`);
@@ -65,7 +73,7 @@ async function billingNamespace(io) {
                     logger.info(`❌ ${socket.id} Ошибка: Не передан канал в subscribe`);
                 }
 
-                socket.on('event', (data, callback) => {
+                socket.on('transaction', (data, callback) => {
                     console.log('Получено сообщение с запросом подтверждения:', data);
 
                     // Выполняем какую-то обработку данных...
@@ -78,30 +86,22 @@ async function billingNamespace(io) {
                 });
 
                 async function sendUnreadMessages() {
-                    const messages = await redisClient.lRange(`channel:billing:messages`, 0, -1);
+                    const messages = await redisClient.lRange(`missed:messages:transaction:${socket.decoded.id}`, 0, -1);
 
                     if (messages) {
                         messages.forEach((message) => {
 
-
-                            // io.of("/billing").to('billing').timeout(5000).emit("event", JSON.parse(message), (err, responses) => {
-                            //     if (err) {
-                            //         logger.info('2 the client did not acknowledge the event in the given delay');
-                            //         redisClient.rPush(`channel:billing:messages`, JSON.stringify(message));
-                            //     } else {
-                            //         if (responses[0] && responses[0].status === "accepted") {
-                            //             logger.info("Подтвердил получение сообщения:", responses);
-                            //         } else {
-                            //             logger.info("Не отправил подтверждение! записываем в Redis");
-                            //             redisClient.rPush(`channel:billing:messages`, JSON.stringify(message));
-                            //         }
-                            //     }
+                            // sendMessage(io, {
+                            //     channel: 'transaction',
+                            //     eventName: 'transaction',
+                            //     message: message,
+                            //     namespace: 'transaction'
                             // });
-                            io.of("/billing").to('billing').timeout(5000).emit("event", JSON.parse(message), true);
+                            io.of("/transaction").to('transaction').timeout(5000).emit("transaction", JSON.parse(message), true);
 
                             logger.info(message);
                         });
-                        //await redisClient.del(`channel:billing:messages`); // Очистка списка сообщений
+                        await redisClient.del(`missed:messages:transaction:${socket.decoded.id}`); // Очистка списка сообщений
                     }
 
 
@@ -112,13 +112,13 @@ async function billingNamespace(io) {
 
                 }
 
-               // sendUnreadMessages();
+                 sendUnreadMessages();
             });
 
 
             socket.on('disconnect', () => {
                 logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
-                redisClient.del(`connection:${socket.id}`);
+                redisClient.del(`connection:${socket.decoded.id}`);
 
 
             });
@@ -129,4 +129,4 @@ async function billingNamespace(io) {
 
 }
 
-module.exports = {billingNamespace}
+module.exports = {transactionNamespace}
