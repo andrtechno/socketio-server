@@ -6,7 +6,8 @@
     "scripts": {
         "start": "node index.js",
         "test": "jest",
-        "dev": "nodemon index.js"
+        "dev": "nodemon index.js",
+        "reload-namespace2": "node -e \"require('./index').reloadNamespace('namespace2')\""
     },
     "dependencies": {
         "@socket.io/admin-ui": "^0.5.1",

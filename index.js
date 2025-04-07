@@ -54,6 +54,65 @@ app.use(express.json());
 // HTTP Admin panel
 app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.io/admin-ui', 'ui', 'dist')));
 
+
+// Маппинг для хранения активных namespaces
+const namespaces = {};
+// Функция для загрузки namespace
+async function loadNamespace(namespaceName) {
+    const handlerPath = path.join(__dirname, 'namespaces', `${namespaceName}.js`);
+    const handler = require(handlerPath);
+
+    // Создаем и настраиваем namespace
+    const ns = io.of(`/${namespaceName}`);
+    handler(ns);
+    namespaces[namespaceName] = ns;
+    console.log(`Namespace ${namespaceName} loaded`);
+}
+
+// Функция для перезагрузки namespace
+async function reloadNamespace(namespaceName) {
+    const namespacePath = path.join(__dirname, 'namespaces', `${namespaceName}.js`);
+    console.log(`Attempting to reload namespace: ${namespaceName}`);
+    // Удаляем старую версию модуля из кэша
+    delete require.cache[require.resolve(namespacePath)];
+
+
+        // Перезагружаем namespace
+        await loadNamespace(namespaceName);
+        console.log(`Namespace ${namespaceName} reloaded successfully`);
+
+}
+
+// Функция для загрузки всех namespaces
+function loadNamespaces() {
+    const namespacesDirectory = path.join(__dirname, 'namespaces');
+    const files = fs.readdirSync(namespacesDirectory);
+
+    files.forEach(file => {
+        if (file.endsWith('.js')) {
+            const namespaceName = file.replace('.js', '');
+             loadNamespace(namespaceName);
+        }
+    });
+}
+
+// Функция для отправки события в все сокеты конкретного namespace
+function sendEventToNamespace(namespaceName, eventName, data) {
+    const ns = namespaces[namespaceName];
+
+    if (ns) {
+        Object.values(ns.sockets).forEach(socket => {
+            // Отправляем событие disconnect
+            // socket.disconnect(true); // Принудительно отключаем клиента
+        });
+        ns.sockets.forEach(socket => {
+            //socket.emit(eventName, data);  // Отправляем событие каждому клиенту
+
+            socket.disconnect(true); // Принудительно отключаем клиента
+        });
+    }
+}
+
 Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
@@ -68,6 +127,46 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     });
 
 
+    // function loadNamespaces() {
+    //     const namespacesDirectory = path.join(__dirname, 'namespaces');
+    //     const files = fs.readdirSync(namespacesDirectory);
+    //
+    //     files.forEach(file => {
+    //         if (file.endsWith('.js')) {
+    //             const namespaceName = file.replace('.js', '');
+    //             const handler = require(path.join(namespacesDirectory, file));
+    //
+    //             // Создаем новый namespace и подключаем обработчик
+    //             const ns = io.of(`/${namespaceName}`);
+    //             handler(ns);
+    //             console.log(`Namespace ${namespaceName} loaded`);
+    //         }
+    //     });
+    // }
+    // Загружаем все namespaces
+    //loadNamespaces();
+
+
+    app.get("/reload", (req, res) => {
+
+
+        const namespaceToReload = req.query.namespace || 'namespace2';
+
+        try {
+            // Перед перезагрузкой отправляем событие всем сокетам в этом namespace
+            sendEventToNamespace(namespaceToReload, 'beforeReload', { message: `The ${namespaceToReload} is going to be reloaded.` });
+
+            // Задержка, чтобы событие успело обработаться (можно сделать это асинхронно, если нужно)
+            setTimeout(() => {
+                reloadNamespace(namespaceToReload);
+                res.status(200).send(`Namespace ${namespaceToReload} reloaded successfully`);
+            }, 1000);  // Задержка 1 секунда, можно настроить
+
+        } catch (error) {
+            console.error(error);
+            res.status(500).send(`Failed to reload namespace ${namespaceToReload}`);
+        }
+    })
     io.on("connection", (socket) => {
         logger.info(`[${socket.id}]${socket.decoded.id}: подключился.`);
 
@@ -96,7 +195,18 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
         });
 
+        socket.on('reconnect', (attemptNumber) => {
+            console.log(`Client reconnected after ${attemptNumber} attempts`);
+            socket.emit('message', 'Successfully reconnected!');
+        });
 
+        socket.on('reconnect_error', (error) => {
+            console.log('Reconnection error:', error);
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            console.log(`Attempting to reconnect... Attempt #${attemptNumber}`);
+        });
         socket.on('disconnect', () => {
             logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
         });
@@ -211,10 +321,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
     transactionNamespace(io).then(() => {
-
-
     });
-
 
     // Обработка отключения клиента (например, если клиент закрыл соединение)
     server.on('close', () => {
@@ -237,7 +344,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
             }, 1000);
         }
     });
-
+    module.exports.reloadNamespace = reloadNamespace;
     server.listen(PORT, process.env.WS_HOST,() => {
         logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'params_test');
     });
@@ -280,3 +387,9 @@ process.on('uncaughtException', (err) => {
 
 
 
+
+process.stdin.once('data', (input) => {
+    if (input.toString().trim() === 'reload-namespace1') {
+        console.log('reload-namespace1')
+    }
+});

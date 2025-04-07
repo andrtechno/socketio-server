@@ -73,15 +73,30 @@ $jwt = JWT::encode($payload, $key, 'HS256');
 
 
 ### ENV
+| Параметр             | Значение по умолчанию  | Description                             |
+|:---------------------|:-----------------------|:----------------------------------------|
+| **WS_HOST**          | 0.0.0.0                | 0.0.0.0 (ipv4)                          |
+| **WS_PORT**          | 3000                   | Порт socket server                      |
+| **NODE_ENV**         | development            | development или production              |
+| **JWT_SECRET**       | -                      | Jwt secret key for Server and Client    |
+| **CORS_ORIGIN**      | *                      | Cors settings                           |
+| **REDIS_HOST**       | localhost              | Redis host                              |
+| **REDIS_POST**       | 6379                   | Redis port                              |
+| **REDIS_DB**         | 1                      | Redis database                          |
+| **REDIS_PASSWORD**   |                        | Redis password                          |
 
-| Параметр           | Значение по умолчанию | Описание                             |
-|--------------------|:----------------------|--------------------------------------|
-| **WS_HOST**        | 0.0.0.0               | 0.0.0.0 (ipv4)                       |
-| **WS_PORT**        | 3000                  | Порт socket server                   |
-| **NODE_ENV**       | development           | development или production           |
-| **JWT_SECRET**     | -                     | Jwt secret key for Server and Client |
-| **CORS_ORIGIN**    | *                     | Cors settings                        |
-| **REDIS_HOST**     | localhost             | Redis host                           |
-| **REDIS_POST**     | 6379                  | Redis port                           |
-| **REDIS_DB**       | 1                     | Redis database                       |
-| **REDIS_PASSWORD** |                       | Redis password                       |
+
+
+### Sockets
+| Namespace    | Auth Type  | Description   |
+|:-------------|:-----------|:--------------|
+| /            | none       | General       |
+| /admin       | none       | Admin panel   |
+| /transaction | JWT Token  | transactions  |
+
+
+### Routes
+| Method | Url    | Body raw                                                                                                                |
+|:-------|:-------|:------------------------------------------------------------------------------------------------------------------------|
+| GET    | /admin | admin panel                                                                                                             |
+| POST   | /push  | ```json{"message":{"type":"info","message":"text","time":3},"event":"Notification","channels":["user-503","user-1"]}``` |
