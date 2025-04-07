@@ -69,3 +69,19 @@ $payload = [
 
 $jwt = JWT::encode($payload, $key, 'HS256');
 ```
+
+
+
+### ENV
+
+| Параметр           | Значение по умолчанию | Описание                             |
+|--------------------|:----------------------|--------------------------------------|
+| **WS_HOST**        | 0.0.0.0               | 0.0.0.0 (ipv4)                       |
+| **WS_PORT**        | 3000                  | Порт socket server                   |
+| **NODE_ENV**       | development           | development или production           |
+| **JWT_SECRET**     | -                     | Jwt secret key for Server and Client |
+| **CORS_ORIGIN**    | *                     | Cors settings                        |
+| **REDIS_HOST**     | localhost             | Redis host                           |
+| **REDIS_POST**     | 6379                  | Redis port                           |
+| **REDIS_DB**       | 1                     | Redis database                       |
+| **REDIS_PASSWORD** |                       | Redis password                       |

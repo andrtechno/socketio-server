@@ -6,6 +6,10 @@ RUN apt update && apt install -y curl git supervisor
 # Set the working directory in the container
 WORKDIR /socket
 
+# Устанавливаем Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt install -y nodejs
 

@@ -21,6 +21,8 @@ const i18n = require('i18n');
 const setupRedisAdapter = require("./socket/adapter");
 const {sendTelegramMessage} = require("./services/telegramService");
 const TelegramBot = require("node-telegram-bot-api");
+const {socketCorsOptions, corsOptions} = require("./utils/cors");
+const cors = require("cors");
 
 
 i18n.configure({
@@ -40,16 +42,12 @@ const options = {
     pingInterval: 5000,
 };
 const server = http.createServer(options, app);
+const allowedOrigins = process.env.CORS_ORIGIN.split(',');
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        //origin: ["http://socket.loc:3000",'http://192.168.211.183:3000'],
-        methods: ["GET", "POST"],
-        credentials: true
-    }
+    cors: socketCorsOptions
 });
 
-
+app.use(cors(corsOptions));
 // HTTP API для отправки сообщений в WebSocket
 app.use(express.json());
 
@@ -105,26 +103,53 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
         socket.on("ping", () => {
-            socket.emit("pong",{data:[]});
+            socket.emit("pong", {data: []});
         });
     });
-
+    // io.on('error', (err) => {
+    //     console.error('Socket.IO server error:', err);
+    // });
     app.post("/push", (req, res) => {
 
-        const {channels, message, event} = req.body;
+        let {channels, message, event} = req.body;
+
+        const rawIp = req.ip || req.headers['x-forwarded-for'] || '';
+        const clientIp = rawIp.startsWith('::ffff:') ? rawIp.slice(7) : rawIp;
+
+        console.log(clientIp);
+        if (!Array.isArray(channels)) {
+            channels = channels ? [channels] : [];
+        }
+
+
+        const regex = /^[-a-zA-Z0-9_=@,.;]+$/;
+        let errors = [];
+
+        //Validate channels name
+        channels.forEach(channel => {
+            if (!regex.test(channel)) {
+                errors.push('Invalid channel name ' + channel);
+            }
+        });
+        if (!channels.length || !message || !event) {
+            errors.push(i18n.__('channelOrMessageMissing'));
+        }
+
+
+        if (errors.length) {
+            return res.status(400).json({
+                success: false,
+                errors: errors
+            });
+        }
 
         // Если канал и сообщение указаны, отправляем сообщение в канал
         if (channels && message && event) {
             io.to(channels).emit(event, message);
             logger.info(`Sent to channel:`, message);
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 message: i18n.__('sendMessageSuccess')
-            });
-        } else {
-            res.status(400).json({
-                success: false,
-                message: i18n.__('channelOrMessageMissing')
             });
         }
     });
@@ -213,7 +238,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
         }
     });
 
-    server.listen(PORT, () => {
+    server.listen(PORT, process.env.WS_HOST,() => {
         logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'params_test');
     });
 
@@ -234,11 +259,22 @@ async function shutdown() {
 }
 
 
+
+
+// Отслеживание необработанных отклонений (unhandledRejection)
+process.on('unhandledRejection', (error) => {
+    logger.error('Unhandled Rejection:', reason instanceof Error ? reason : new Error(reason));
+    // Если нужно завершить процесс, можно вызвать process.exit(1) или не делать этого:
+    shutdown();
+});
+
+
+
 process.on('SIGINT', shutdown);   // Ctrl+C
 process.on('SIGTERM', shutdown);  // Команда kill
 process.on('exit', shutdown);     // Завершение процесса
 process.on('uncaughtException', (err) => {
-    logger.error('Необработанное исключение:', err);
+    logger.error('Uncaught Exception:');
     shutdown();
 });
 
