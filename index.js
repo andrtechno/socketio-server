@@ -11,7 +11,7 @@ const {sendMessage} = require('./socket');
 
 const {
     authMiddleware,
-    requestTokenMiddleware
+    requestJWTMiddleware
 } = require("./middleware");
 const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
@@ -105,7 +105,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
         socket.on("ping", () => {
-            socket.emit("pong");
+            socket.emit("pong",{data:[]});
         });
     });
 
@@ -151,7 +151,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
     });
 
-    app.post("/send", requestTokenMiddleware, (req, res) => {
+    app.post("/send", requestJWTMiddleware, (req, res) => {
 
         const {channel, message, eventName, namespace} = req.body;
 
@@ -185,103 +185,10 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     });
 
 
-    transactionNamespace(io).then(r => {
+    transactionNamespace(io).then(() => {
 
-        // app.post("/:channel/send", authenticateToken, (req, res) => {
-        //
-        //     const {channel, message, eventName,namespace} = req.body;
-        //
-        //
-        //     // Если канал и сообщение указаны, отправляем сообщение в канал
-        //     if (channel && message) {
-        //         io.of(`/${namespace}`).to(channel).timeout(5000).emit(eventName, message, (err, responses) => {
-        //             if (err) {
-        //                 logger.info('the client did not acknowledge the event in the given delay');
-        //             } else {
-        //                 if (responses[0] && responses[0].status === "accepted") {
-        //                     logger.info("Подтвердил получение сообщения:", responses);
-        //                 } else {
-        //                     logger.info("Не отправил подтверждение! записываем в Redis");
-        //                 }
-        //             }
-        //         });
-        //
-        //
-        //         logger.info(`Sent to channel ${channel}:`, message);
-        //         res.status(200).json({success: true});
-        //     } else {
-        //         res.status(400).json({success: false});
-        //     }
-        // });
 
     });
-    // billingNamespace(io).then(r => {
-    //
-    //     app.post("/billing/send", authenticateToken, (req, res) => {
-    //
-    //         const channel = 'billing'; // Получаем параметр из URL
-    //
-    //         const {message,namespace} = req.body;
-    //
-    //
-    //         // Если канал и сообщение указаны, отправляем сообщение в канал
-    //         if (channel && message) {
-    //             io.to(channel).timeout(5000).emit("test", {text: 'lalal'});
-    //
-    //             // io.of("/billing").to(channel).emit("event", message);
-    //             io.of(`/${namespace}`).to(channel).timeout(5000).emit("event", message, (err, responses) => {
-    //                 if (err) {
-    //                     logger.info('the client did not acknowledge the event in the given delay');
-    //                 } else {
-    //                     if (responses[0] && responses[0].status === "accepted") {
-    //                         logger.info("Подтвердил получение сообщения:", responses);
-    //                     } else {
-    //
-    //
-    //                         getRedisClient().then((redis) => {
-    //                             redis.rPush(`channel:${channel}:messages`, JSON.stringify(message));
-    //
-    //
-    //                             scanKeys('subscribe:billing:*')
-    //                                 .then(list => {
-    //
-    //
-    //                                     list.forEach((item) => {
-    //
-    //                                         //  const [first, channel, user_id] = item.split(':');
-    //                                         //    console.log(first,channel,user_id);
-    //
-    //
-    //                                         logger.info(item);
-    //                                         // redis.rPush(`messed:${item}`, JSON.stringify(message));
-    //                                     });
-    //
-    //                                 })
-    //                                 .catch(console.error);
-    //
-    //                             // const data = {
-    //                             //     channel: channel,
-    //                             //     message: JSON.stringify(message)
-    //                             // }
-    //                             // redis.hSet(`channel:${channel}:messages`, data);
-    //                         });
-    //
-    //
-    //                         logger.info("Не отправил подтверждение! записываем в Redis");
-    //
-    //                     }
-    //                 }
-    //             });
-    //
-    //
-    //             logger.info(`Sent to channel ${channel}:`, message);
-    //             res.status(200).json({success: true});
-    //         } else {
-    //             res.status(400).json({success: false});
-    //         }
-    //     });
-    //
-    // });
 
 
     // Обработка отключения клиента (например, если клиент закрыл соединение)

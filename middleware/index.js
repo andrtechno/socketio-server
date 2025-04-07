@@ -1,8 +1,10 @@
 
 const authMiddleware = require('./auth.middleware');
-const requestTokenMiddleware = require('./requestToken.middleware');
+const requestJWTMiddleware = require('./requestJWT.middleware');
+const bearerTokenMiddleware = require("./transaction.middleware");
 
 module.exports = {
     authMiddleware,
-    requestTokenMiddleware
+    requestJWTMiddleware,
+    bearerTokenMiddleware
 };

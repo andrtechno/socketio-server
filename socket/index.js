@@ -61,8 +61,6 @@ function handleResponse(err, responses, {channel, eventName, message, namespace}
             logger.info("Подтвердил получение сообщения:", responses);
         } else {
             logger.info("Не отправил подтверждение! Записываем в Redis.");
-
-
         }
     }
 }

@@ -4,7 +4,7 @@ const logger = require("../utils/logger");
 const ValidateTransactionRequest = require("../validators/requests/ValidateTransactionRequest");
 
 
-async function requestTokenMiddleware(req, res, next) {
+async function requestJWTMiddleware(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -60,4 +60,4 @@ async function requestTokenMiddleware(req, res, next) {
     console.log('Proceed to the next middleware or route handler');
     next(); // Proceed to the next middleware or route handler
 }
-module.exports = requestTokenMiddleware;
+module.exports = requestJWTMiddleware;

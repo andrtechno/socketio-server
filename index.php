@@ -30,7 +30,7 @@
     }
 
     // Подключение к серверу
-    const socket = io('http://socket.loc:3000', {
+    const socket = io('http://192.168.211.183:3000', {
         transports: ["websocket"],
         auth: {
             token: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NTAzLCJlbWFpbCI6InNlbWVub3ZAc29ob25ldC51YSIsImZpcnN0X25hbWUiOiJcdTA0MTBcdTA0M2RcdTA0MzRcdTA0NDBcdTA0MzVcdTA0MzkiLCJsYXN0X25hbWUiOiJcdTA0MjFcdTA0MzVcdTA0M2NcdTA0MzVcdTA0M2RcdTA0M2VcdTA0MzIifQ.55Lxy0Ssx--ZNCxn1iY_WS9wWHq6DsvuiyHNdWEycw8'
