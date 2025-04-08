@@ -10,8 +10,7 @@ const redisService = require('./services/redis.service');
 const {sendMessage} = require('./socket');
 
 const {
-    authMiddleware,
-    requestJWTMiddleware
+    authMiddleware, requestJWTMiddleware
 } = require("./middleware");
 const {instrument} = require('@socket.io/admin-ui');
 const path = require("path");
@@ -23,12 +22,11 @@ const {sendTelegramMessage} = require("./services/telegramService");
 const TelegramBot = require("node-telegram-bot-api");
 const {socketCorsOptions, corsOptions} = require("./utils/cors");
 const cors = require("cors");
+const requestPushBodyMiddleware = require("./middleware/requestPushBody.middleware");
 
 
 i18n.configure({
-    locales: ['en', 'uk', 'ru'],
-    directory: path.join(__dirname, 'locales'),
-    defaultLocale: 'en',
+    locales: ['en', 'uk', 'ru'], directory: path.join(__dirname, 'locales'), defaultLocale: 'en',
 });
 //i18n.setLocale('uk');
 
@@ -57,6 +55,7 @@ app.use('/admin', express.static(path.join(__dirname, 'node_modules', '@socket.i
 
 // Маппинг для хранения активных namespaces
 const namespaces = {};
+
 // Функция для загрузки namespace
 async function loadNamespace(namespaceName) {
     const handlerPath = path.join(__dirname, 'namespaces', `${namespaceName}.js`);
@@ -77,9 +76,9 @@ async function reloadNamespace(namespaceName) {
     delete require.cache[require.resolve(namespacePath)];
 
 
-        // Перезагружаем namespace
-        await loadNamespace(namespaceName);
-        console.log(`Namespace ${namespaceName} reloaded successfully`);
+    // Перезагружаем namespace
+    await loadNamespace(namespaceName);
+    console.log(`Namespace ${namespaceName} reloaded successfully`);
 
 }
 
@@ -91,7 +90,7 @@ function loadNamespaces() {
     files.forEach(file => {
         if (file.endsWith('.js')) {
             const namespaceName = file.replace('.js', '');
-             loadNamespace(namespaceName);
+            loadNamespace(namespaceName);
         }
     });
 }
@@ -121,8 +120,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
     // Интеграция Socket.IO Admin
     instrument(io, {
-        auth: false,
-        mode: "development"
+        auth: false, mode: "development"
         //namespaceName: "/admin"
     });
 
@@ -147,29 +145,32 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     //loadNamespaces();
 
 
-    app.get("/reload", (req, res) => {
-
-
-        const namespaceToReload = req.query.namespace || 'namespace2';
-
-        try {
-            // Перед перезагрузкой отправляем событие всем сокетам в этом namespace
-            sendEventToNamespace(namespaceToReload, 'beforeReload', { message: `The ${namespaceToReload} is going to be reloaded.` });
-
-            // Задержка, чтобы событие успело обработаться (можно сделать это асинхронно, если нужно)
-            setTimeout(() => {
-                reloadNamespace(namespaceToReload);
-                res.status(200).send(`Namespace ${namespaceToReload} reloaded successfully`);
-            }, 1000);  // Задержка 1 секунда, можно настроить
-
-        } catch (error) {
-            console.error(error);
-            res.status(500).send(`Failed to reload namespace ${namespaceToReload}`);
-        }
-    })
+    // app.get("/reload", (req, res) => {
+    //
+    //
+    //     const namespaceToReload = req.query.namespace || 'namespace2';
+    //
+    //     try {
+    //         // Перед перезагрузкой отправляем событие всем сокетам в этом namespace
+    //         sendEventToNamespace(namespaceToReload, 'beforeReload', {message: `The ${namespaceToReload} is going to be reloaded.`});
+    //
+    //         // Задержка, чтобы событие успело обработаться (можно сделать это асинхронно, если нужно)
+    //         setTimeout(() => {
+    //             reloadNamespace(namespaceToReload);
+    //             res.status(200).send(`Namespace ${namespaceToReload} reloaded successfully`);
+    //         }, 1000);  // Задержка 1 секунда, можно настроить
+    //
+    //     } catch (error) {
+    //         console.error(error);
+    //         res.status(500).send(`Failed to reload namespace ${namespaceToReload}`);
+    //     }
+    // })
     io.on("connection", (socket) => {
         logger.info(`[${socket.id}]${socket.decoded.id}: подключился.`);
 
+
+        // Связываем кастомный socketId с реальным socket.id в Redis
+        //   await redisService.set(`socket:${socket.decoded.id}`, socket.id);
 
         socket.on("subscribe", (channel) => {
             if (channel) {
@@ -178,21 +179,6 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
             } else {
                 logger.info(`${socket.id} Ошибка: Не передан канал в subscribe`);
             }
-
-            socket.on('billing', (data) => {
-                console.log(`${socket.id} Получено сообщение:`, data);
-            });
-
-            socket.on('transaction', (data, callback) => {
-                console.log(`${socket.id} Получено сообщение с запросом подтверждения:`, data);
-                sendMessage(socket, data);
-
-                // Отправляем подтверждение клиенту
-                if (callback && typeof callback === 'function') {
-                    callback([{status: 'accepted', timestamp: Date.now()}]);
-                }
-            });
-
         });
 
         socket.on('reconnect', (attemptNumber) => {
@@ -209,57 +195,89 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
         });
         socket.on('disconnect', () => {
             logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
+            // await redisService.keys('user:*:sockets', (err, keys) => {
+            //     keys.forEach((key) => {
+            //        redisService.srem(key, socket.id);  // Удаляем socket.id из множества
+            //     });
+            // });
         });
 
 
         socket.on("ping", () => {
             socket.emit("pong", {data: []});
         });
+
+        // Отправка сообщения на все сокеты пользователя
+        // socket.on('sendMessageToUser', async (userId, message) => {
+        //     await redisService.smembers(`user:${userId}:sockets`, (err, socketIds) => {
+        //         if (err) {
+        //             console.error('Error fetching socket ids:', err);
+        //             return;
+        //         }
+        //
+        //         // Отправляем сообщение на все сокеты пользователя
+        //         socketIds.forEach((socketId) => {
+        //             io.to(socketId).emit('message', message);
+        //         });
+        //     });
+        // });
+        //
+        // // Пример: пользователь отправляет свой user_id при подключении
+        // socket.on('register', async (userId) => {
+        //     // Сохраняем связь между user_id и socket.id в Redis
+        //     await redisService.sadd(`user:${userId}:sockets`, socket.id);
+        //
+        //     console.log(`Socket ${socket.id} registered for user ${userId}`);
+        // });
     });
-    // io.on('error', (err) => {
-    //     console.error('Socket.IO server error:', err);
-    // });
-    app.post("/push", (req, res) => {
 
-        let {channels, message, event} = req.body;
+    app.post("/push", requestPushBodyMiddleware, (req, res) => {
 
-        const rawIp = req.ip || req.headers['x-forwarded-for'] || '';
-        const clientIp = rawIp.startsWith('::ffff:') ? rawIp.slice(7) : rawIp;
+        const {channels, message, event} = req.body;
 
-        console.log(clientIp);
-        if (!Array.isArray(channels)) {
-            channels = channels ? [channels] : [];
-        }
+        // const rawIp = req.ip || req.headers['x-forwarded-for'] || '';
+        // const clientIp = rawIp.startsWith('::ffff:') ? rawIp.slice(7) : rawIp;
+        // console.log(clientIp);
 
+        // if (!Array.isArray(channels)) {
+        //     channels = channels ? [channels] : [];
+        // }
+        //
+        //
+        // const regex = /^[-a-zA-Z0-9_=@,.;]+$/;
+        // let errors = [];
+        //
+        // //Validate channels name
+        // channels.forEach(channel => {
+        //     if (!regex.test(channel)) {
+        //         errors.push('Invalid channel name ' + channel);
+        //     }
+        // });
+        // if (!channels.length || !message || !event) {
+        //     errors.push(i18n.__('channelOrMessageMissing'));
+        // }
+        //
+        //
+        // if (errors.length) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         errors: errors
+        //     });
+        // }
 
-        const regex = /^[-a-zA-Z0-9_=@,.;]+$/;
-        let errors = [];
-
-        //Validate channels name
-        channels.forEach(channel => {
-            if (!regex.test(channel)) {
-                errors.push('Invalid channel name ' + channel);
-            }
-        });
-        if (!channels.length || !message || !event) {
-            errors.push(i18n.__('channelOrMessageMissing'));
-        }
-
-
-        if (errors.length) {
-            return res.status(400).json({
-                success: false,
-                errors: errors
-            });
-        }
 
         // Если канал и сообщение указаны, отправляем сообщение в канал
         if (channels && message && event) {
             io.to(channels).emit(event, message);
-            logger.info(`Sent to channel:`, message);
+            logger.info(`Sent to channel:`, {meta: message});
             return res.status(200).json({
                 success: true,
                 message: i18n.__('sendMessageSuccess')
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: i18n.__('channelOrMessageMissing')
             });
         }
     });
@@ -279,8 +297,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
         // });
 
         res.status(200).json({
-            success: true,
-            message: 'Message sent'
+            success: true, message: 'Message sent'
         });
 
 
@@ -299,22 +316,17 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
             }
 
             sendMessage(io, {
-                channel: channelName,
-                eventName: eventName,
-                message: message,
-                namespace: namespace
+                channel: channelName, eventName: eventName, message: message, namespace: namespace
             });
 
 
             logger.info(`Sent to channel ${channel}:`, message);
             res.status(200).json({
-                success: true,
-                message: i18n.__('sendMessageSuccess')
+                success: true, message: i18n.__('sendMessageSuccess')
             });
         } else {
             res.status(400).json({
-                success: false,
-                message: i18n.__('channelOrMessageMissing')
+                success: false, message: i18n.__('channelOrMessageMissing')
             });
         }
     });
@@ -344,8 +356,8 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
             }, 1000);
         }
     });
-    module.exports.reloadNamespace = reloadNamespace;
-    server.listen(PORT, process.env.WS_HOST,() => {
+
+    server.listen(PORT, process.env.WS_HOST, () => {
         logger.info(`Socket.io сервер запущен на порту ${PORT}`, 'params_test');
     });
 
@@ -355,41 +367,28 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 async function shutdown() {
     try {
-        console.log('Завершаем процесс...');
-        //await redisService.quit();  // Убедитесь, что у вас есть метод для закрытия соединения
+        logger.info('Завершаем процесс...');
         process.exit(0); // Завершаем процесс с кодом 0 (успешно)
     } catch (error) {
         // Логируем ошибки, если они произошли
-        console.error('Ошибка при удалении ключей:', error);
+        logger.error('Ошибка при удалении ключей:', {meta: error});
         process.exit(1); // Завершаем процесс с кодом 1 (ошибка)
     }
 }
 
 
-
+process.on('SIGINT', shutdown);   // Ctrl+C
+process.on('SIGTERM', shutdown);  // Команда kill
+process.on('exit', shutdown);     // Завершение процесса
 
 // Отслеживание необработанных отклонений (unhandledRejection)
-process.on('unhandledRejection', (error) => {
-    logger.error('Unhandled Rejection:', reason instanceof Error ? reason : new Error(reason));
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled rejection', {meta: {reason: reason}, promise});
     // Если нужно завершить процесс, можно вызвать process.exit(1) или не делать этого:
     shutdown();
 });
 
-
-
-process.on('SIGINT', shutdown);   // Ctrl+C
-process.on('SIGTERM', shutdown);  // Команда kill
-process.on('exit', shutdown);     // Завершение процесса
-process.on('uncaughtException', (err) => {
-    logger.error('Uncaught Exception:');
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception', {meta: {error: error.message}, stack: error.stack});
     shutdown();
-});
-
-
-
-
-process.stdin.once('data', (input) => {
-    if (input.toString().trim() === 'reload-namespace1') {
-        console.log('reload-namespace1')
-    }
 });

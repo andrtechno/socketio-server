@@ -6,8 +6,7 @@
     "scripts": {
         "start": "node index.js",
         "test": "jest",
-        "dev": "nodemon index.js",
-        "reload-namespace2": "node -e \"require('./index').reloadNamespace('namespace2')\""
+        "dev": "nodemon index.js"
     },
     "dependencies": {
         "@socket.io/admin-ui": "^0.5.1",
@@ -29,7 +28,8 @@
         "socketio-jwt-auth": "^0.2.1",
         "validator": "^13.15.0",
         "viber-bot": "^1.0.18",
-        "winston": "^3.17.0"
+        "winston": "^3.17.0",
+        "winston-daily-rotate-file": "^5.0.0"
     },
     "keywords": [],
     "author": "",

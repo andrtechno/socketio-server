@@ -60,4 +60,5 @@ async function requestJWTMiddleware(req, res, next) {
     console.log('Proceed to the next middleware or route handler');
     next(); // Proceed to the next middleware or route handler
 }
+
 module.exports = requestJWTMiddleware;
