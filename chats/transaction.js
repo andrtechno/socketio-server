@@ -1,24 +1,26 @@
 const logger = require("../utils/logger");
 const {authMiddleware} = require("../middleware");
 const redisService = require('../services/redis.service');
+const ValidateTransactionRequest = require("../validators/requests/ValidateTransactionRequest");
 
 async function transactionNamespace(io) {
     const transactionNamespace = io.of("/transaction");
 
+    transactionNamespace.use(authMiddleware);
 
-    transactionNamespace.use(authMiddleware).on("connection", async (socket) => {
+    transactionNamespace.on("connection", (socket) => {
         logger.info(`Клиент подключился к /transaction: ${socket.id} / ${socket.decoded.id}`);
 
 
-        await redisService.set(`ns.transaction:connection:${socket.decoded.id}`, socket.id);
+        redisService.set(`ns.transaction:connection:${socket.decoded.id}`, socket.id);
 
         socket.on("ping", () => {
             socket.emit("pong");
         });
 
 
-        socket.on("subscribe", async (channels) => {
 
+        socket.on("subscribe", async (channels) => {
 
             logger.info(`Клиент ${socket.id} подписался на`);
 
@@ -28,13 +30,14 @@ async function transactionNamespace(io) {
 
 
                 await Promise.all(channels.map(async (channel) => {
-                    const exists = await redisService.exists(`subscribe:${channel}:${socket.decoded.id}`);
+                    const exists = await redisService.exists(`ns.transaction:subscribe:${channel}:${socket.decoded.id}`);
                     if (exists === 1) {
-                        const subscribeSata = await redisService.hGetAll(`subscribe:${channel}:${socket.decoded.id}`);
-                        logger.info(`${socket.id} subscribe3:${channel}:${socket.decoded.id} redis.hGetAll`);
+                        const subscribeSata = await redisService.hGetAll(`ns.transaction:subscribe:${channel}:${socket.decoded.id}`);
+                        console.log(subscribeSata);
+                        logger.info(`${socket.id} subscribe2222222222222222:${channel}:${socket.decoded.id} redis.hGetAll`);
                     } else {
-                        logger.info(`${socket.id} subscribe2:${channel}:${socket.decoded.id} redis.hSet`);
-                        await redisService.hSetAll(`subscribe:${channel}:${socket.decoded.id}`, socket.decoded);
+                        logger.info(`${socket.id} subscribe1111111111111111:${channel}:${socket.decoded.id} redis.hSet`);
+                        await redisService.hSetAll(`ns.transaction:subscribe:${channel}:${socket.decoded.id}`, socket.decoded);
                     }
 
                     logger.info(`${socket.id} Подписан на канал(ы): ${channel}`);
@@ -44,20 +47,20 @@ async function transactionNamespace(io) {
                 logger.info(`${socket.id} Ошибка: Не передан канал в subscribe`);
             }
 
-            // socket.on('transaction', (data, callback) => {
-            //     console.log('Получено сообщение с запросом подтверждения:', data);
-            //
-            //     // Выполняем какую-то обработку данных...
-            //     // ...
-            //
-            //     // Отправляем подтверждение клиенту
-            //     if (callback && typeof callback === 'function') {
-            //         callback({status: 'accepted', message: 'Сообщение успешно обработано сервером'});
-            //     }
-            // });
+            socket.on('ack', (data) => {
+                console.log('Получено сообщение с запросом подтверждения:', data);
+                //
+                // // Выполняем какую-то обработку данных...
+                // // ...
+                //
+                // // Отправляем подтверждение клиенту
+                // if (callback && typeof callback === 'function') {
+                //     callback({status: 'accepted', message: 'Сообщение успешно обработано сервером'});
+                // }
+            });
 
             async function sendUnreadMessages() {
-                const key = `missed:messages:transaction:${socket.decoded.id}`;
+                const key = `ns.transaction:missed:${socket.decoded.id}`;
                 const messages = await redisService.smembers(key);
                 console.log(messages);
                 if (messages) {
@@ -68,13 +71,13 @@ async function transactionNamespace(io) {
                 }
             }
 
-            await sendUnreadMessages();
+         //   await sendUnreadMessages();
         });
 
 
-        socket.on('disconnect', async () => {
+        socket.on('disconnect', () => {
             logger.info(`${socket.id} Пользователь отключен: ${socket.decoded.id}`);
-            await redisService.del(`ns.transaction:connection:${socket.decoded.id}`);
+            redisService.del(`ns.transaction:connection:${socket.decoded.id}`);
         });
     });
 }

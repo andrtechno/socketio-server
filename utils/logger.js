@@ -2,7 +2,7 @@ const {createLogger, format, transports} = require("winston");
 const { combine, timestamp, printf, colorize, errors } = format;
 const DailyRotateFile = require('winston-daily-rotate-file');
 const logFormat = printf(({ level, message, timestamp, stack, meta }) => {
-    return `[${timestamp}] ${level}: ${message} ${stack ? `\nStack trace: ${stack}` : ''} ${meta ? JSON.stringify(meta) : ''}`;
+    return `[${timestamp}] ${level}: ${message} ${stack ? `\nStack trace: ${stack} ` : ''}${meta ? JSON.stringify(meta) : ''}`;
 });
 
 const transportConsole = new transports.Console({

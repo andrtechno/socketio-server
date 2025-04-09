@@ -7,7 +7,7 @@ const logger = require('./utils/logger');
 const {transactionNamespace} = require("./chats/transaction");
 const {createAdapter} = require('@socket.io/redis-adapter');
 const redisService = require('./services/redis.service');
-const {sendMessage} = require('./socket');
+const {sendMessage,sendMessageWithAck} = require('./socket');
 
 const {
     authMiddleware, requestJWTMiddleware
@@ -23,6 +23,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const {socketCorsOptions, corsOptions} = require("./utils/cors");
 const cors = require("cors");
 const requestPushBodyMiddleware = require("./middleware/requestPushBody.middleware");
+const ValidateTransactionRequest = require("./validators/requests/ValidateTransactionRequest");
 
 
 i18n.configure({
@@ -112,6 +113,7 @@ function sendEventToNamespace(namespaceName, eventName, data) {
     }
 }
 
+
 Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
 
@@ -120,9 +122,15 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
 
     // Интеграция Socket.IO Admin
     instrument(io, {
-        auth: false, mode: "development"
-        //namespaceName: "/admin"
+        auth: {
+            type: "basic",
+            username: "admin",
+            password: "$2b$10$OKwBzjZ6kVOrvlXuqBmiD.zTZpKz/AbNs9GgJdnHOR.VOOIG64KfC", //adminsoho
+        },
+        mode: process.env.NODE_ENV,
+        namespaceName: "/admin"
     });
+    //console.log(require("bcryptjs").hashSync("adminsoho", 10));
 
 
     // function loadNamespaces() {
@@ -165,6 +173,7 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
     //         res.status(500).send(`Failed to reload namespace ${namespaceToReload}`);
     //     }
     // })
+
     io.on("connection", (socket) => {
         logger.info(`[${socket.id}]${socket.decoded.id}: подключился.`);
 
@@ -177,15 +186,25 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
                 socket.join(channel);
                 logger.info(`${socket.id} Подписан на канал: ${channel}`);
             } else {
-                logger.info(`${socket.id} Ошибка: Не передан канал в subscribe`);
+                logger.info(`${socket.id} Ошибка: Не передан канал`);
             }
         });
-
+        socket.on("unsubscribe", (channel) => {
+            if (channel) {
+                socket.leave(channel);
+                logger.info(`${socket.id} Описался от канала: ${channel}`);
+            } else {
+                logger.info(`${socket.id} Ошибка: Не передан канал`);
+            }
+        });
         socket.on('reconnect', (attemptNumber) => {
             console.log(`Client reconnected after ${attemptNumber} attempts`);
             socket.emit('message', 'Successfully reconnected!');
         });
-
+        socket.on('disconnect', (reason) => {
+            console.log('disconnect:', reason);
+            socket.disconnect(true);
+        });
         socket.on('reconnect_error', (error) => {
             console.log('Reconnection error:', error);
         });
@@ -230,46 +249,38 @@ Promise.resolve().then(() => setupRedisAdapter(io)).then(() => {
         //     console.log(`Socket ${socket.id} registered for user ${userId}`);
         // });
     });
+    io.on('disconnect', (reason) => {
+        console.log('disconnect2222:', reason);
+
+    });
 
     app.post("/push", requestPushBodyMiddleware, (req, res) => {
 
-        const {channels, message, event} = req.body;
+        const {channels, message, event, namespace} = req.body;
+        let ns = namespace || '/';
 
-        // const rawIp = req.ip || req.headers['x-forwarded-for'] || '';
-        // const clientIp = rawIp.startsWith('::ffff:') ? rawIp.slice(7) : rawIp;
-        // console.log(clientIp);
-
-        // if (!Array.isArray(channels)) {
-        //     channels = channels ? [channels] : [];
-        // }
-        //
-        //
-        // const regex = /^[-a-zA-Z0-9_=@,.;]+$/;
-        // let errors = [];
-        //
-        // //Validate channels name
-        // channels.forEach(channel => {
-        //     if (!regex.test(channel)) {
-        //         errors.push('Invalid channel name ' + channel);
-        //     }
-        // });
-        // if (!channels.length || !message || !event) {
-        //     errors.push(i18n.__('channelOrMessageMissing'));
-        // }
-        //
-        //
-        // if (errors.length) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         errors: errors
-        //     });
-        // }
-
-
-        // Если канал и сообщение указаны, отправляем сообщение в канал
         if (channels && message && event) {
-            io.to(channels).emit(event, message);
-            logger.info(`Sent to channel:`, {meta: message});
+
+            if (ns === '/transaction' && event === 'transaction') {
+                const {error} = ValidateTransactionRequest(req.body);
+                if (error) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Ошибка валидации',
+                        entryData: message,
+                        errors: error.details.map(err => err.message),
+                    });
+                }
+                // sendMessageWithAck(io, {
+                //     channels: channels, event: event, message: message, namespace: ns
+                // });
+                io.of(ns).to(channels).emit(event, message);
+            }else{
+                io.of(ns).to(channels).emit(event, message);
+            }
+
+
+            logger.info(`Send to channel:`, {meta: req.body});
             return res.status(200).json({
                 success: true,
                 message: i18n.__('sendMessageSuccess')

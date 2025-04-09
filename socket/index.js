@@ -11,6 +11,15 @@ function sendMessage(io, {channel = null, eventName, message, namespace}) {
     });
 }
 
+function sendMessageWithAck(io, {channels = null, event, message, namespace}) {
+    let ns = namespace || '/';
+    const emitter = channels ? io.of(ns).to(channels) : io.of(ns); // Если есть канал → отправляем в него, иначе всем
+    emitter.timeout(5000).emit(event, message, (err, responses) => {
+        handleResponseTransaction(err, responses, {channels, event, message, ns});
+        // console.log(handleResponse);
+    });
+}
+
 async function compareSubscribersWithOnline(channel) {
     // Получаем список подписчиков
 
@@ -34,21 +43,21 @@ async function compareSubscribersWithOnline(channel) {
 }
 
 
-function handleResponse(err, responses, {channel, eventName, message, namespace}) {
+function handleResponse(err, responses, {channels, event, message, namespace}) {
 
     if (err) {
         logger.info(`Клиент не подтвердил получение события в течение 5 секунд.`);
     } else {
         Promise.resolve()
-            .then(() => compareSubscribersWithOnline(channel))
+            .then(() => compareSubscribersWithOnline(channels))
             .then((offlineSubscribers) => {
                 console.log('Оффлайн подписчики:', offlineSubscribers);
                 const client = redisService;
                 offlineSubscribers.forEach((user) => {
-                    client.sadd(`missed:messages:${channel}:${user}`, JSON.stringify({
+                    client.sadd(`missed:messages:${channels}:${user}`, JSON.stringify({
                         message: message,
-                        channel: channel,
-                        eventName: eventName,
+                        channels: channels,
+                        event: event,
                         namespace: namespace
                     }));
                 });
@@ -66,6 +75,40 @@ function handleResponse(err, responses, {channel, eventName, message, namespace}
 }
 
 
+function handleResponseTransaction(err, responses, {channels, event, message, namespace}) {
+
+    if (err) {
+        logger.info(`Клиент не подтвердил получение события в течение 5 секунд.`);
+    } else {
+        console.log(channels);
+        // Promise.resolve()
+        //     .then(() => compareSubscribersWithOnline(channels))
+        //     .then((offlineSubscribers) => {
+        //         console.log('Оффлайн подписчики:', offlineSubscribers);
+        //         const client = redisService;
+        //         offlineSubscribers.forEach((user) => {
+        //             client.sadd(`missed:messages:${channels}:${user}`, JSON.stringify({
+        //                 message: message,
+        //                 channels: channels,
+        //                 event: event,
+        //                 namespace: namespace
+        //             }));
+        //         });
+        //     })
+        //     .catch(error => {
+        //         console.error(error); // Если ошибка, выводим ошибку
+        //     });
+
+        if (responses?.[0]?.status === "accepted") {
+            logger.info("Подтвердил получение сообщения:", {meta: responses});
+        } else {
+            logger.info("Не отправил подтверждение! Записываем в Redis.");
+        }
+    }
+}
+
+
 module.exports = {
-    sendMessage
+    sendMessage,
+    sendMessageWithAck
 };

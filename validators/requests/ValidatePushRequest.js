@@ -7,6 +7,7 @@ const schema = Joi.object({
         Joi.array().items(Joi.string().pattern(/^[-a-zA-Z0-9_=@,.;]+$/).message('Invalid channel name'))
     ),
     message: Joi.object().required(),
+    namespace: Joi.string().optional(),
 });
 
 const ValidatePushRequest = (data) => {

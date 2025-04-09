@@ -6,10 +6,12 @@ const Joi = require("joi");
 // allow(null).optional(): Используйте, если поле может отсутствовать или быть null.
 // default(): Используйте, если поле должно иметь значение по умолчанию при
 
-const transactionSchema  = Joi.object({
-    namespace: Joi.string().min(3).required(),
-    eventName: Joi.string().required(),
-    channel: Joi.string().required(),
+const schema  = Joi.object({
+    event: Joi.string().min(3).required(),
+    channels: Joi.alternatives().try(
+        Joi.string().pattern(/^[-a-zA-Z0-9_=@,.;]+$/).message('Invalid channel name'),
+        Joi.array().items(Joi.string().pattern(/^[-a-zA-Z0-9_=@,.;]+$/).message('Invalid channel name'))
+    ),
     message: Joi.object({
         id: Joi.number().integer().required(),
         subscription_id: Joi.allow(null).optional(),
@@ -27,11 +29,12 @@ const transactionSchema  = Joi.object({
         provider_id_s: Joi.string().allow(null).optional(),
         created_by: Joi.number().integer().optional(),
         updated_by: Joi.number().integer().optional(),
-    })
+    }),
+    namespace: Joi.string().optional(),
 });
 
 const ValidateTransactionRequest = (data) => {
-    return transactionSchema.validate(data, { abortEarly: false });
+    return schema.validate(data, { abortEarly: false });
 };
 
 module.exports = ValidateTransactionRequest;

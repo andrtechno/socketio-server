@@ -38,5 +38,4 @@ async function bearerTokenMiddleware(req, res, next) {
 
     next(); // Proceed to the next middleware or route handler
 }
-
 module.exports = bearerTokenMiddleware;

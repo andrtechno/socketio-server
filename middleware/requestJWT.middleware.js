@@ -30,32 +30,32 @@ async function requestJWTMiddleware(req, res, next) {
         });
     }
 
-    if (channel === 'billing') {
-        const {error, value} = validateBillingBody(req.body);
+    // if (channel === 'billing') {
+    //     const {error, value} = validateBillingBody(req.body);
+    //
+    //     if (error) {
+    //         logger.error("Ошибка валидации:");
+    //         return res.status(400).json({
+    //             success: false,
+    //             message: 'Ошибка валидации',
+    //             errors: error.details.map(err => err.message)
+    //         });
+    //     }
+    // }
 
-        if (error) {
-            logger.error("Ошибка валидации:");
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: error.details.map(err => err.message)
-            });
-        }
-    }
-
-    console.log(channel);
-    if (channel === 'transaction') {
-        const {error, value} = ValidateTransactionRequest(req.body);
-
-        if (error) {
-            logger.error("Ошибка валидации:");
-            return res.status(400).json({
-                success: false,
-                message: 'Ошибка валидации',
-                errors: error.details.map(err => err.message)
-            });
-        }
-    }
+    // console.log(channel);
+    // if (channel === 'transaction') {
+    //     const {error, value} = ValidateTransactionRequest(req.body);
+    //
+    //     if (error) {
+    //         logger.error("Ошибка валидации:");
+    //         return res.status(400).json({
+    //             success: false,
+    //             message: 'Ошибка валидации',
+    //             errors: error.details.map(err => err.message)
+    //         });
+    //     }
+    // }
 
     console.log('Proceed to the next middleware or route handler');
     next(); // Proceed to the next middleware or route handler

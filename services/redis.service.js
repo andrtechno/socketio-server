@@ -29,7 +29,7 @@ class RedisService {
             new Promise((resolve, reject) => this.subClient.once('ready', resolve).once('error', reject)),
         ]);
 
-        logger.info('✅ Redis-соединения установлены');
+        logger.info('Redis соединения установлены');
     }
 
     getClient() {
@@ -61,9 +61,9 @@ class RedisService {
         try {
             // hset используется для записи значения в хеш
             await client.hset(key, field, value);
-            console.log(`✅ Данные установлены в хеш: ${key}, поле: ${field}, значение: ${value}`);
+            console.log(`Данные установлены в хеш: ${key}, поле: ${field}, значение: ${value}`);
         } catch (error) {
-            console.error('❌ Ошибка при установке данных в хеш Redis:', error);
+            console.error('Ошибка при установке данных в хеш Redis:', error);
             throw error;
         }
     }
@@ -81,9 +81,9 @@ class RedisService {
 
             // Используем hset для записи нескольких полей за раз
             await client.hset(key, ...flatValues);
-            console.log(`✅ Данные установлены в хеш: ${key}, поля: ${Object.keys(fieldsValues).join(', ')}`);
+            console.log(`Данные установлены в хеш: ${key}, поля: ${Object.keys(fieldsValues).join(', ')}`);
         } catch (error) {
-            console.error('❌ Ошибка при установке данных в хеш Redis:', error);
+            console.error('Ошибка при установке данных в хеш Redis:', error);
             throw error; // Бросаем ошибку дальше
         }
     }
@@ -122,7 +122,7 @@ class RedisService {
         try {
             return await client.hgetall(key);
         } catch (error) {
-            console.error('❌ Ошибка при получении данных из хеша Redis:', error);
+            console.error('Ошибка при получении данных из хеша Redis:', error);
             throw error; // Бросаем ошибку дальше для обработки
         }
     }
